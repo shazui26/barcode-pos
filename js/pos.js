@@ -7,7 +7,11 @@
    ========================================================================== */
 
 import { mountAuth, signOutUser } from "./auth.js";
-import { createScanner } from "./scanner.js";
+import {
+  createScanner,
+  cameraPermissionState,
+  CAMERA_BLOCKED_HELP
+} from "./scanner.js";
 import {
   getProduct,
   recordSale,
@@ -138,6 +142,15 @@ function wireCamera() {
       addByBarcodeInput(code);
     },
     onError: (message) => showStatus(el("scanStatus"), message, "error")
+  });
+
+  // A blocked camera is sticky: the browser will not prompt again, so letting
+  // the user press the button to discover that just wastes their time. Say so
+  // as soon as the page is ready instead.
+  cameraPermissionState().then((state) => {
+    if (state === "denied") {
+      showStatus(el("scanStatus"), CAMERA_BLOCKED_HELP, "error");
+    }
   });
 
   cameraBtn.onclick = async () => {

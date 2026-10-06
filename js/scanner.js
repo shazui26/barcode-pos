@@ -20,6 +20,34 @@
 const DUPLICATE_COOLDOWN_MS = 1600;
 
 /**
+ * Shown when the browser has the camera permission set to "blocked".
+ *
+ * This is worth spelling out because a block is sticky: Chrome records it per
+ * origin and will not prompt again, so pressing the button repeatedly can
+ * never recover. The user has to reset it in site settings first.
+ */
+export const CAMERA_BLOCKED_HELP =
+  "Camera is blocked for this site, and the browser will not ask again until " +
+  "you reset it: click the icon at the left of the address bar, set Camera to " +
+  "Allow, then reload the page.";
+
+/**
+ * Best-effort camera permission state: "granted" | "denied" | "prompt", or
+ * "unknown" where the browser does not support querying it (Firefox and
+ * Safari do not expose "camera" to permissions.query). Used to warn about a
+ * sticky block before the user wastes time pressing the button.
+ */
+export async function cameraPermissionState() {
+  try {
+    if (!navigator.permissions || !navigator.permissions.query) return "unknown";
+    const status = await navigator.permissions.query({ name: "camera" });
+    return status.state;
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
  * The barcode formats to enable. Built lazily rather than at module scope: if
  * the html5-qrcode CDN script is blocked or offline, touching
  * window.Html5QrcodeSupportedFormats at import time would throw and take the
@@ -127,7 +155,7 @@ function describeCameraError(err) {
   const text = String(err?.message || err);
 
   if (name === "NotAllowedError" || /permission/i.test(text)) {
-    return "Camera permission was blocked. Allow camera access for this site and try again.";
+    return CAMERA_BLOCKED_HELP;
   }
   if (name === "NotFoundError" || /no.*camera|requested device not found/i.test(text)) {
     return "No camera found on this device.";
