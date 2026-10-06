@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Sales</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body>
+<body class="page-sales">
   <div id="gate" class="login-screen" hidden></div>
 
   <div class="app" id="app" hidden>
@@ -24,11 +24,11 @@
 
     <div class="content single">
       <main class="main-panel">
-        <div class="section-header" style="margin-top:0;">
+        <div class="section-header flush">
           <div class="section-title">Sales history</div>
-          <div class="row" style="gap:8px;">
+          <div class="row row-tight">
             <!-- Filters sit in one row above the figures. -->
-            <div class="field" style="min-width:160px;">
+            <div class="field field-wide">
               <label for="range">Period</label>
               <select id="range">
                 <option value="today">Today</option>

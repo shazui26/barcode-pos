@@ -276,15 +276,15 @@ function renderRows() {
         <tr>
           <td><div class="item-name">${esc(p.name)}</div></td>
           <td><span class="item-sub">${esc(p.barcode)}</span></td>
-          <td class="num">${money(p.price)}</td>
-          <td class="num"><span class="badge ${level}">${esc(label)}</span></td>
-          <td class="num" style="white-space:nowrap;">
-            <button class="secondary-btn" type="button" data-action="edit"
-                    data-barcode="${esc(p.barcode)}"
-                    style="height:34px;padding:0 12px;font-size:0.85rem;">Edit</button>
-            <button class="remove-btn" type="button" data-action="delete"
-                    data-barcode="${esc(p.barcode)}"
-                    style="margin-left:10px;">Delete</button>
+          <td class="num" data-label="Price">${money(p.price)}</td>
+          <td class="num" data-label="Stock"><span class="badge ${level}">${esc(label)}</span></td>
+          <td class="num actions-cell">
+            <div class="row-actions">
+              <button class="secondary-btn btn-sm" type="button" data-action="edit"
+                      data-barcode="${esc(p.barcode)}">Edit</button>
+              <button class="remove-btn" type="button" data-action="delete"
+                      data-barcode="${esc(p.barcode)}">Delete</button>
+            </div>
           </td>
         </tr>`;
     })

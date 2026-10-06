@@ -1,5 +1,17 @@
 /* ==========================================================================
    Shared stylesheet for the POS + Catalog app.
+
+   MOBILE-FIRST. The base rules below describe the phone layout, and the two
+   min-width blocks near the bottom add the tablet and desktop layouts on top.
+   That is the reverse of how this file used to be written (desktop base, with
+   max-width overrides), which meant every narrow-screen rule was a correction
+   to a layout that was never designed for it.
+
+   Breakpoints:
+     base        phone    single column, card tables, bottom tab bar, bottom sheet
+     >= 700px    tablet   real tables, multi-column forms
+     >= 1000px   desktop  two-column layout, nav back in the topbar
+
    Design tokens are carried over from the original POS terminal mockup so the
    whole app reads as one product.
    ========================================================================== */
@@ -18,9 +30,22 @@
   --border: #dfe7f3;
   --shadow: 0 18px 40px rgba(23, 41, 74, 0.12);
   --radius: 12px;
+
+  /* Height of the two fixed bars at the bottom of the phone layout. Content
+     is padded by these so the last row is never trapped underneath them. */
+  --tabbar-h: 58px;
+  --bottombar-h: 68px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
 * { box-sizing: border-box; }
+
+/* #gate and #app are shown and hidden with the `hidden` attribute, but
+   .login-screen sets display:grid. An author `display` beats the user agent's
+   `[hidden] { display: none }` at equal specificity, so without this guard a
+   signed-in page still rendered the empty gate as a full-height block - which
+   pushed the entire app one viewport down and left the screen blank. */
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -28,6 +53,8 @@ html, body {
   background: linear-gradient(135deg, #edf3ff 0%, #f9fbff 100%);
   color: var(--text);
   min-height: 100%;
+  /* Stops iOS inflating text in landscape. */
+  -webkit-text-size-adjust: 100%;
 }
 
 body { min-height: 100vh; }
@@ -35,68 +62,93 @@ body { min-height: 100vh; }
 /* --------------------------------------------------------------- shell --- */
 
 .app {
-  width: min(1280px, 100%);
-  margin: 24px auto;
+  width: 100%;
+  margin: 0;
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* Clearance for the fixed tab bar, plus the summary bar on the POS page. */
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-b));
+}
+
+body.page-pos .app {
+  padding-bottom: calc(var(--tabbar-h) + var(--bottombar-h) + var(--safe-b));
 }
 
 .topbar {
   background: linear-gradient(135deg, #0d1729 0%, #1a2e52 100%);
   color: #fff;
-  padding: 18px 28px;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   font-weight: 700;
   letter-spacing: 0.03em;
+  min-width: 0;
 }
 
 .brand-badge {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.12);
   display: grid;
   place-items: center;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
+  flex: none;
 }
 
-.nav { display: flex; gap: 6px; flex-wrap: wrap; }
+/* --- navigation: fixed bottom tab bar on phones --- */
+
+.nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  gap: 0;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  padding-bottom: var(--safe-b);
+  box-shadow: 0 -6px 20px rgba(23, 41, 74, 0.08);
+}
 
 .nav a {
-  color: #cddcff;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--tabbar-h);
+  padding: 6px 4px;
   text-decoration: none;
-  padding: 9px 16px;
-  border-radius: 999px;
-  font-size: 0.92rem;
+  color: var(--muted);
+  font-size: 0.72rem;
   font-weight: 600;
-  border: 1px solid transparent;
+  border: none;
+  border-radius: 0;
 }
 
-.nav a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.nav a.active { color: var(--primary); background: var(--panel-alt); }
 
-.nav a.active {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.22);
-  color: #fff;
-}
+.nav-icon { display: block; font-size: 1.2rem; line-height: 1; }
+.nav-label { display: block; line-height: 1.1; text-align: center; }
 
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -104,10 +156,10 @@ body { min-height: 100vh; }
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  padding: 9px 14px;
-  font-size: 0.86rem;
+  padding: 8px 12px;
+  font-size: 0.8rem;
   color: #dfe8ff;
-  max-width: 260px;
+  max-width: 42vw;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -115,19 +167,24 @@ body { min-height: 100vh; }
 
 /* ----------------------------------------------------------- layout --- */
 
-.content { display: grid; grid-template-columns: 1.2fr 0.8fr; min-height: 700px; }
+.content { display: block; }
 
 .main-panel {
-  padding: 28px;
+  padding: 16px;
   background: linear-gradient(180deg, #fff 0%, #f8faff 100%);
-  border-right: 1px solid var(--border);
 }
 
-.summary-panel { background: #f8faff; padding: 28px 24px; }
-
-/* Single-column pages (catalog, sales) reuse .main-panel without the split. */
-.content.single { grid-template-columns: 1fr; }
-.content.single .main-panel { border-right: none; }
+.summary-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--tabbar-h) + var(--safe-b));
+  z-index: 55;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 24px rgba(23, 41, 74, 0.1);
+  padding: 0;
+}
 
 /* ----------------------------------------------------------- buttons --- */
 
@@ -160,50 +217,62 @@ body { min-height: 100vh; }
 
 button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
 
+/* Compact button used inside table rows. Taller on phones so it stays a
+   comfortable tap target; the 34px desktop size is restored at >= 700px. */
+.btn-sm { height: 44px; padding: 0 14px; font-size: 0.85rem; }
+
+.action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.action-row > button { flex: 1 1 auto; }
+
 /* ------------------------------------------------------------ panels --- */
 
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 18px;
-  padding: 22px;
+  padding: 18px;
 }
 
 .scan-panel {
   background: var(--panel-alt);
   border: 1px solid var(--border);
   border-radius: 18px;
-  padding: 20px;
-  margin-bottom: 22px;
+  padding: 16px;
+  margin-bottom: 20px;
 }
 
 .scan-header, .section-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.scan-header { margin-bottom: 16px; }
+.scan-header { margin-bottom: 14px; }
 
-.section-header { margin: 18px 0 12px; }
+.section-header { margin: 16px 0 12px; }
+.section-header.spaced { margin-top: 26px; }
+.section-header.flush { margin-top: 0; }
 
-.scan-title, .section-title { font-size: 1.1rem; font-weight: 700; }
+.scan-title, .section-title { font-size: 1.05rem; font-weight: 700; }
 
-.scan-input-wrap { display: flex; align-items: center; gap: 12px; }
+.section-meta { color: var(--muted); font-size: 0.9rem; }
+
+.scan-input-wrap { display: flex; flex-direction: column; gap: 10px; }
 
 .scan-input {
   flex: 1;
-  height: 56px;
+  height: 52px;
   border-radius: 14px;
   border: 1px solid var(--border);
   background: #fff;
-  padding: 0 18px;
-  font-size: 1.08rem;
+  padding: 0 16px;
+  font-size: 1.05rem;
   color: var(--text);
   outline: none;
   font-family: inherit;
+  width: 100%;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -219,14 +288,20 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
    region from what it measures, so a display:none container measures 0x0, the
    qrbox collapses to 0x0, and the viewfinder stays invisible even after the
    video has real dimensions. */
-#reader { display: none; width: 100%; border-radius: 14px; overflow: hidden; margin-top: 14px; }
+#reader { display: none; width: 100%; max-width: 100%; border-radius: 14px; overflow: hidden; margin-top: 14px; }
 #reader.active { display: block; }
 
 /* ------------------------------------------------------------ forms --- */
 
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.row-tight { gap: 8px; }
+.row > .primary-btn { flex: 1 1 100%; }
 
-.field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 130px; }
+/* Full width on phones: one field per line. The multi-column form is added at
+   >= 700px. min-width is left at 0 so a field can never force the page wider
+   than the screen. */
+.field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 100%; min-width: 0; }
+.field-wide { flex: 1 1 100%; }
 
 .field label { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
 
@@ -236,9 +311,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
   border-radius: 10px;
   padding: 12px;
   color: var(--text);
-  font-size: 0.95rem;
+  /* 1rem = 16px. Anything smaller makes iOS Safari zoom in when the field is
+     focused, which throws the whole layout off. */
+  font-size: 1rem;
   font-family: inherit;
   width: 100%;
+  min-width: 0;
   outline: none;
 }
 
@@ -277,7 +355,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
 
 table { width: 100%; border-collapse: collapse; }
 
-th, td { padding: 13px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+th, td { padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--border); }
 
 th {
   background: #f8faff;
@@ -298,7 +376,64 @@ td.num, th.num { text-align: right; }
 
 .empty-state { text-align: center; color: var(--muted); padding: 30px 16px; font-size: 0.96rem; }
 
-/* Quantity stepper */
+/* --- card mode ------------------------------------------------------------
+   .cards-sm turns a table into stacked cards on phones: each row becomes a
+   bordered card and each labelled cell reads "LABEL  value". The label text
+   comes from the data-label attribute written by the JS templates, so the
+   markup stays a real table for the desktop layout at >= 700px.
+
+   Applied to the cart and catalog tables. The sales table keeps scrolling
+   horizontally, because its numbers and expandable detail rows are genuinely
+   tabular. */
+
+.cards-sm { background: transparent; border: none; border-radius: 0; overflow-x: visible; }
+
+.cards-sm table,
+.cards-sm thead,
+.cards-sm tbody,
+.cards-sm tr,
+.cards-sm td { display: block; }
+
+.cards-sm thead { display: none; }
+
+.cards-sm tr {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+
+.cards-sm tr:last-child { margin-bottom: 0; }
+
+.cards-sm td {
+  border: none;
+  padding: 4px 0;
+  text-align: left;
+}
+
+.cards-sm td[data-label]::before {
+  content: attr(data-label);
+  display: inline-block;
+  min-width: 62px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cards-sm td:last-child { text-align: right; }
+
+.row-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Quantity stepper - 44px targets on phones. */
 .qty-box {
   display: inline-flex;
   align-items: center;
@@ -309,12 +444,12 @@ td.num, th.num { text-align: right; }
 }
 
 .qty-box button {
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   border: none;
   background: transparent;
   color: var(--primary);
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   cursor: pointer;
   font-weight: 700;
   font-family: inherit;
@@ -323,7 +458,7 @@ td.num, th.num { text-align: right; }
 
 .qty-box button:hover { background: rgba(47, 111, 237, 0.1); }
 
-.qty-box span { min-width: 30px; text-align: center; font-weight: 600; }
+.qty-box span { min-width: 34px; text-align: center; font-weight: 600; }
 
 .remove-btn {
   background: transparent;
@@ -333,6 +468,8 @@ td.num, th.num { text-align: right; }
   cursor: pointer;
   font-family: inherit;
   font-size: 0.9rem;
+  min-height: 44px;
+  padding: 0 4px;
 }
 
 .remove-btn:hover { text-decoration: underline; }
@@ -353,7 +490,7 @@ td.num, th.num { text-align: right; }
 
 /* --------------------------------------------------- quick item grid --- */
 
-.quick-items { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.quick-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 
 .quick-item {
   background: #fff;
@@ -367,6 +504,7 @@ td.num, th.num { text-align: right; }
   text-align: center;
   cursor: pointer;
   gap: 5px;
+  min-height: 74px;
   font-family: inherit;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -381,16 +519,46 @@ td.num, th.num { text-align: right; }
 
 /* -------------------------------------------------------- summary ----- */
 
+/* Phone: the Order Summary IS the fixed bottom bar. Only the running total and
+   the pay button show; the rest of the card unfolds above them when the
+   chevron is tapped. Reusing the real card keeps #totalValue and #payBtn the
+   single source of truth - renderSummary() needs no changes. */
+
 .summary-card {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 22px;
-  position: sticky;
-  top: 24px;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 10px 16px 12px;
 }
 
-.summary-card h2 { margin: 0 0 18px; font-size: 1.25rem; }
+/* Keep the total and the pay button pinned at the bottom of the card, with
+   everything else above them, whatever order the markup happens to be in. */
+.summary-card > * { order: 2; }
+.summary-card > h2 { order: 1; }
+.summary-card > .total-row { order: 3; }
+.summary-card > .payment-actions { order: 4; }
+
+.summary-card h2,
+.summary-card .metric,
+.summary-card .divider,
+.summary-card .field,
+.summary-card .tender-row { display: none; }
+
+.summary-card.expanded h2 { display: block; }
+.summary-card.expanded .metric { display: flex; }
+.summary-card.expanded .divider { display: block; }
+.summary-card.expanded .field { display: flex; }
+.summary-card.expanded .tender-row { display: flex; }
+
+.summary-card.expanded {
+  max-height: 80dvh;
+  overflow-y: auto;
+  padding-top: 16px;
+}
+
+.summary-card h2 { margin: 0 0 14px; font-size: 1.15rem; }
 
 .metric {
   display: flex;
@@ -409,23 +577,66 @@ td.num, th.num { text-align: right; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 1.3rem;
+  font-size: 1.15rem;
   font-weight: 800;
-  margin-bottom: 18px;
+  margin-bottom: 10px;
 }
 
-.total-row span:last-child { color: var(--primary-dark); }
+.total-amount { display: flex; align-items: center; gap: 8px; }
 
-.payment-actions { display: grid; gap: 10px; margin-top: 12px; }
-.payment-actions .primary-btn { height: 54px; border-radius: 14px; font-size: 1rem; }
+#totalValue { color: var(--primary-dark); }
+
+.summary-toggle {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  display: grid;
+  place-items: center;
+}
+
+.summary-toggle span { transition: transform 0.2s ease; }
+.summary-card.expanded .summary-toggle span { transform: rotate(180deg); }
+
+.summary-field { margin-bottom: 10px; }
+.tender-row { gap: 6px; margin-bottom: 10px; flex-wrap: nowrap; }
+.tender-row .tender-btn { flex: 1 1 0; min-width: 0; padding: 0 8px; }
+
+.payment-actions { display: grid; gap: 10px; margin-top: 6px; }
+.payment-actions .primary-btn { height: 52px; border-radius: 14px; font-size: 1rem; }
+
+/* Dim layer behind the unfolded summary. Inert unless the sheet is open. */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(13, 23, 41, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.sheet-backdrop.show { opacity: 1; pointer-events: auto; }
+
+/* Receipt shown after a completed sale. */
+.receipt { display: none; margin-top: 18px; }
+.receipt.show { display: block; }
 
 /* ----------------------------------------------------- login screen --- */
 
 .login-screen {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 20px;
 }
 
 .login-card {
@@ -434,7 +645,7 @@ td.num, th.num { text-align: right; }
   border: 1px solid var(--border);
   border-radius: 20px;
   box-shadow: var(--shadow);
-  padding: 34px 30px;
+  padding: 28px 22px;
 }
 
 .login-card .brand { color: var(--text); justify-content: center; margin-bottom: 6px; }
@@ -456,7 +667,7 @@ td.num, th.num { text-align: right; }
 
 .toast {
   position: fixed;
-  bottom: 22px;
+  bottom: calc(var(--tabbar-h) + var(--safe-b) + 12px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--success);
@@ -473,6 +684,10 @@ td.num, th.num { text-align: right; }
   text-align: center;
 }
 
+body.page-pos .toast {
+  bottom: calc(var(--tabbar-h) + var(--bottombar-h) + var(--safe-b) + 12px);
+}
+
 .toast.show { opacity: 1; }
 .toast.error { background: var(--danger); color: #fff; }
 .toast.info { background: var(--primary); color: #fff; }
@@ -481,9 +696,10 @@ td.num, th.num { text-align: right; }
 
 .center-note {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 20px;
   text-align: center;
   color: var(--muted);
 }
@@ -494,11 +710,11 @@ td.num, th.num { text-align: right; }
   border: 1px solid var(--border);
   border-radius: 20px;
   box-shadow: var(--shadow);
-  padding: 32px;
+  padding: 22px;
   text-align: left;
 }
 
-.setup-card h1 { margin-top: 0; font-size: 1.3rem; color: var(--text); }
+.setup-card h1 { margin-top: 0; font-size: 1.2rem; color: var(--text); }
 .setup-card code {
   background: var(--panel-alt);
   padding: 2px 7px;
@@ -512,7 +728,7 @@ td.num, th.num { text-align: right; }
   padding: 14px 16px;
   border-radius: var(--radius);
   overflow-x: auto;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
 }
 .setup-card ol { padding-left: 20px; line-height: 1.9; color: var(--text); }
 
@@ -523,16 +739,16 @@ td.num, th.num { text-align: right; }
    here, since these tiles are three separate measures rather than a series. */
 .kpi-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 14px;
-  margin-bottom: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .stat-tile {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 16px 18px;
+  padding: 14px 16px;
 }
 
 .stat-tile .label {
@@ -544,7 +760,7 @@ td.num, th.num { text-align: right; }
 }
 
 .stat-tile .value {
-  font-size: 1.55rem;
+  font-size: 1.45rem;
   font-weight: 800;
   color: var(--text);
   margin-top: 6px;
@@ -556,33 +772,220 @@ td.num, th.num { text-align: right; }
 
 /* Expanded sale detail row */
 .detail-row td { background: #f8faff; padding: 0; }
-.detail-inner { padding: 12px 18px 16px; }
+.detail-inner { padding: 12px 14px 16px; }
 
 tr.sale-row { cursor: pointer; }
 tr.sale-row:hover td { background: #fbfcff; }
 
-/* ------------------------------------------------------ responsive ---- */
+/* ==========================================================================
+   TABLET - >= 700px
+   Real tables return, forms go multi-column, headers sit on one line.
+   The bottom tab bar and bottom sheet are kept: they are still thumb-friendly
+   at this size, and the two-column layout does not start until 1000px.
+   ========================================================================== */
 
+@media (min-width: 700px) {
 
-@media (max-width: 980px) {
-  .app { margin: 0; border-radius: 0; border: none; min-height: 100vh; }
-  .content { grid-template-columns: 1fr; }
-  .main-panel { border-right: none; border-bottom: 1px solid var(--border); }
-  .quick-items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .summary-card { position: static; }
+  .topbar { padding: 16px 22px; gap: 16px; }
+  .brand-badge { width: 42px; height: 42px; font-size: 1.35rem; }
+  .status { max-width: 260px; }
+
+  .main-panel { padding: 24px; }
+  .card { padding: 22px; }
+  .scan-panel { padding: 20px; }
+
+  .scan-header, .section-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .scan-header { margin-bottom: 16px; }
+  .section-header { margin: 18px 0 12px; }
+  .section-header.spaced { margin-top: 28px; }
+
+  .scan-input-wrap { flex-direction: row; align-items: center; }
+  .scan-input { height: 56px; padding: 0 18px; font-size: 1.08rem; }
+
+  .action-row > button { flex: 0 0 auto; }
+
+  .field { flex: 1 1 160px; min-width: 130px; }
+  .field-wide { flex: 0 1 auto; min-width: 200px; }
+  .row > .primary-btn { flex: 0 0 auto; }
+  .field input, .field select { font-size: 0.95rem; }
+
+  .quick-items { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+
+  .kpi-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .stat-tile { padding: 16px 18px; }
+  .stat-tile .value { font-size: 1.55rem; }
+
+  .btn-sm { padding: 0 12px; }
+
+  .login-card { padding: 34px 30px; }
+  .setup-card { padding: 32px; }
+  .setup-card h1 { font-size: 1.3rem; }
+  .setup-card pre { font-size: 0.84rem; }
+
+  /* Restore the real table for the card-mode tables. */
+  .cards-sm {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow-x: auto;
+  }
+
+  .cards-sm table { display: table; }
+  .cards-sm thead { display: table-header-group; }
+  .cards-sm tbody { display: table-row-group; }
+
+  .cards-sm tr {
+    display: table-row;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  .cards-sm td {
+    display: table-cell;
+    border-bottom: 1px solid var(--border);
+    padding: 13px 16px;
+    text-align: left;
+  }
+
+  .cards-sm td.num { text-align: right; }
+  .cards-sm td:last-child { text-align: right; }
+  .cards-sm td[data-label]::before { content: none; }
+  .cards-sm tr:last-child td { border-bottom: none; }
 }
 
-@media (max-width: 560px) {
-  .main-panel, .summary-panel { padding: 18px 16px; }
-  .topbar { padding: 14px 16px; }
-  .scan-header, .scan-input-wrap, .section-header { flex-direction: column; align-items: stretch; }
-  .quick-items { grid-template-columns: 1fr; }
-  .scan-input-wrap .primary-btn { height: 48px; }
-  th, td { padding: 11px 12px; }
+/* ==========================================================================
+   DESKTOP - >= 1000px
+   The original two-column design, unchanged. The nav returns to the topbar,
+   the summary returns to a sticky card in the right-hand column, and the
+   bottom bars and sheet are removed entirely.
+   ========================================================================== */
+
+@media (min-width: 1000px) {
+
+  .app {
+    width: min(1280px, 100%);
+    margin: 24px auto;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
+  body.page-pos .app { padding-bottom: 0; }
+
+  .topbar { padding: 18px 28px; gap: 20px; }
+
+  /* Nav back to its inline, light-on-dark form. */
+  .nav {
+    position: static;
+    gap: 6px;
+    flex-wrap: wrap;
+    background: transparent;
+    border-top: none;
+    box-shadow: none;
+    padding-bottom: 0;
+    z-index: auto;
+  }
+
+  .nav a {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 0;
+    min-height: 0;
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    color: #cddcff;
+    font-size: 0.92rem;
+  }
+
+  .nav a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
+  .nav a.active {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #fff;
+  }
+
+  .nav-icon { display: none; }
+
+  /* Shrink the in-row controls to their compact desktop sizes. This is the only
+     point in the stylesheet where tap targets drop below 44px, and it is safe
+     here: a 1000px viewport means a mouse or trackpad, not a thumb. Tablets
+     keep the full-size targets. */
+  .btn-sm { height: 34px; padding: 0 12px; font-size: 0.85rem; }
+  .remove-btn { min-height: 0; }
+  .qty-box button { width: 30px; height: 30px; font-size: 1.15rem; }
+  .qty-box span { min-width: 30px; }
+
+  /* Two-column layout. */
+  .content { display: grid; grid-template-columns: 1.2fr 0.8fr; min-height: 700px; }
+
+  .main-panel {
+    padding: 28px;
+    border-right: 1px solid var(--border);
+  }
+
+  .summary-panel {
+    position: static;
+    bottom: auto;
+    z-index: auto;
+    background: #f8faff;
+    border-top: none;
+    box-shadow: none;
+    padding: 28px 24px;
+  }
+
+  /* Single-column pages (catalog, sales) reuse .main-panel without the split. */
+  .content.single { grid-template-columns: 1fr; }
+  .content.single .main-panel { border-right: none; }
+
+  /* Summary returns to a plain sticky card: no ordering, nothing hidden. */
+  .summary-card {
+    display: block;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px;
+    position: sticky;
+    top: 24px;
+  }
+
+  .summary-card h2 { display: block; font-size: 1.25rem; margin: 0 0 18px; }
+  .summary-card .metric { display: flex; }
+  .summary-card .divider { display: block; }
+  .summary-card .field { display: flex; }
+  .summary-card .tender-row { display: flex; }
+  .summary-card.expanded { max-height: none; overflow-y: visible; padding-top: 22px; }
+
+  .total-row { font-size: 1.3rem; margin-bottom: 18px; }
+  .summary-toggle { display: none; }
+
+  .payment-actions { margin-top: 12px; }
+  .payment-actions .primary-btn { height: 54px; }
+
+  .sheet-backdrop { display: none; }
+
+  .quick-items { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+  .toast { bottom: 22px; }
+  body.page-pos .toast { bottom: 22px; }
 }
+
+/* ---------------------------------------------------------------- print --- */
 
 @media print {
-  .topbar, .scan-panel, .payment-actions, .quick-items, .toast { display: none !important; }
-  .content { grid-template-columns: 1fr; }
+  .topbar, .scan-panel, .payment-actions, .quick-items, .toast, .nav, .sheet-backdrop { display: none !important; }
+  .content { grid-template-columns: 1fr; display: block; }
+  .app { padding-bottom: 0; }
   body, .app { background: #fff; box-shadow: none; }
 }

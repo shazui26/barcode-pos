@@ -73,10 +73,12 @@ export function clearStatus(el) {
 
 /* ------------------------------------------------------------ shell --- */
 
+/* `icon` is a plain text glyph, shown only in the mobile bottom tab bar; the
+   desktop nav hides it and is otherwise unchanged. */
 const PAGES = [
-  { href: "index.html", label: "Point of Sale" },
-  { href: "catalog.html", label: "Catalog" },
-  { href: "sales.html", label: "Sales" }
+  { href: "index.html", label: "Point of Sale", icon: "▣" },
+  { href: "catalog.html", label: "Catalog", icon: "▤" },
+  { href: "sales.html", label: "Sales", icon: "▦" }
 ];
 
 /**
@@ -91,7 +93,9 @@ export function renderShell({ active, user, settings, onSignOut }) {
   if (nav) {
     nav.innerHTML = PAGES.map(
       (p) =>
-        `<a href="${p.href}"${p.href === active ? ' class="active"' : ""}>${p.label}</a>`
+        `<a href="${p.href}"${p.href === active ? ' class="active"' : ""}>` +
+        `<span class="nav-icon" aria-hidden="true">${p.icon}</span>` +
+        `<span class="nav-label">${p.label}</span></a>`
     ).join("");
   }
 

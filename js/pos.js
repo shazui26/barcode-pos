@@ -28,6 +28,10 @@ let settings = { taxRate: 0.08, discountMinItems: 3, discountRate: 0.05, currenc
 let cart = [];
 let lastSale = null;
 
+// Assigned by wireSummarySheet, so completeSale can close the mobile sheet
+// without needing to know anything about the DOM.
+let collapseSummary = () => {};
+
 const LOW_STOCK = 5;
 const CART_KEY = () => `pos_cart_${user?.uid || "anon"}`;
 
@@ -127,6 +131,38 @@ function wireEvents() {
   });
 
   wireCamera();
+  wireSummarySheet();
+}
+
+/* ------------------------------------------------- summary bottom sheet --- */
+
+/**
+ * On a phone the Order Summary is a fixed bottom bar: Total and Complete sale
+ * stay reachable without scrolling past the cart, and the rest of the card
+ * (subtotal, tax, discount, tendered, change) unfolds above them. Tapping the
+ * backdrop or completing a sale closes it again.
+ *
+ * The markup is the real summary card, not a copy - so #totalValue and #payBtn
+ * remain the single source of truth and renderSummary() needs no changes.
+ * On desktop .expanded is inert and the toggle is hidden by CSS.
+ */
+function wireSummarySheet() {
+  const card = document.querySelector(".summary-card");
+  const toggle = document.querySelector(".summary-toggle");
+  const backdrop = el("sheetBackdrop");
+  if (!card || !toggle) return;
+
+  const setOpen = (open) => {
+    card.classList.toggle("expanded", open);
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute("aria-label", open ? "Hide order details" : "Show order details");
+    if (backdrop) backdrop.classList.toggle("show", open);
+  };
+
+  toggle.onclick = () => setOpen(!card.classList.contains("expanded"));
+  if (backdrop) backdrop.onclick = () => setOpen(false);
+
+  collapseSummary = () => setOpen(false);
 }
 
 /* ------------------------------------------------------------ camera --- */
@@ -294,8 +330,8 @@ function renderCart() {
           <div class="item-name">${esc(item.name)}</div>
           <div class="item-sub">#${esc(item.barcode)}</div>
         </td>
-        <td class="num">${money(item.price)}</td>
-        <td>
+        <td class="num" data-label="Price">${money(item.price)}</td>
+        <td data-label="Qty">
           <div class="qty-box">
             <button type="button" data-action="decrease" data-barcode="${esc(item.barcode)}"
                     aria-label="Decrease quantity">&minus;</button>
@@ -304,7 +340,7 @@ function renderCart() {
                     aria-label="Increase quantity">+</button>
           </div>
         </td>
-        <td class="num">${money(item.price * item.qty)}</td>
+        <td class="num" data-label="Total">${money(item.price * item.qty)}</td>
         <td class="num">
           <button class="remove-btn" type="button" data-action="remove"
                   data-barcode="${esc(item.barcode)}">Remove</button>
@@ -415,6 +451,7 @@ async function completeSale() {
     saveCart();
     el("tendered").value = "";
     renderCart();
+    collapseSummary();
     clearStatus(el("scanStatus"));
     toast(`Sale complete — change ${money(Math.max(t.change, 0))}`);
     el("barcodeInput").focus();
@@ -429,7 +466,7 @@ async function completeSale() {
 
 function renderReceipt(sale) {
   const box = el("receipt");
-  box.style.display = "block";
+  box.classList.add("show");
   box.innerHTML = `
     <div class="card">
       <div class="section-header" style="margin-top:0;">
@@ -463,7 +500,7 @@ function renderReceipt(sale) {
     </div>`;
 
   el("closeReceiptBtn").onclick = () => {
-    box.style.display = "none";
+    box.classList.remove("show");
     box.innerHTML = "";
   };
 
