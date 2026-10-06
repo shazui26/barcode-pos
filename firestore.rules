@@ -1,0 +1,50 @@
+rules_version = '2';
+
+// ===========================================================================
+// Firestore security rules for the POS app.
+//
+// Paste this whole file into:
+//   Firebase console -> Firestore Database -> Rules -> (replace all) -> Publish
+//
+// WHY THIS IS SAFE
+// Every rule below requires request.auth != null. That would be reckless if
+// anyone could sign up — but js/auth.js deliberately has NO sign-up form, so
+// the only accounts that exist are the ones you create by hand in
+// Authentication -> Users. A stranger with the public GitHub Pages URL
+// therefore has no account and gets nothing.
+//
+// Anything not matched here is denied by default. Firestore rules are
+// allow-lists: there is no separate "deny" rule to write.
+// ===========================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // ------------------------------------------------------------- products
+    // Doc id is the barcode. Staff may maintain the catalog.
+    match /products/{barcode} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if signedIn();
+    }
+
+    // ---------------------------------------------------------------- sales
+    // Append-only ledger. A completed sale must never be edited or removed,
+    // so there is intentionally no update or delete rule here.
+    match /sales/{saleId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+    }
+
+    // ------------------------------------------------------------- settings
+    // Single settings/config document: store name, tax rate, discounts.
+    match /settings/{docId} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+  }
+}

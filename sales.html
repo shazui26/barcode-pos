@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="gate" class="login-screen" hidden></div>
+
+  <div class="app" id="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-badge">&#9635;</div>
+        <div id="brandName">POS Terminal</div>
+      </div>
+      <nav class="nav" id="nav"></nav>
+      <div class="topbar-right">
+        <div class="status" id="userStatus"></div>
+        <button class="ghost-btn" id="signOutBtn" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <div class="content single">
+      <main class="main-panel">
+        <div class="section-header" style="margin-top:0;">
+          <div class="section-title">Sales history</div>
+          <div class="row" style="gap:8px;">
+            <!-- Filters sit in one row above the figures. -->
+            <div class="field" style="min-width:160px;">
+              <label for="range">Period</label>
+              <select id="range">
+                <option value="today">Today</option>
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="all" selected>All time</option>
+              </select>
+            </div>
+            <button class="secondary-btn" id="refreshBtn" type="button">Refresh</button>
+          </div>
+        </div>
+
+        <div class="kpi-row" id="kpis"></div>
+
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Cashier</th>
+                <th class="num">Items</th>
+                <th class="num">Subtotal</th>
+                <th class="num">Tax</th>
+                <th class="num">Total</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <p class="hint">Click a sale to see the items on it.</p>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="js/sales.js"></script>
+</body>
+</html>

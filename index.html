@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Point of Sale</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <!-- html5-qrcode is a classic script (not an ES module), so it loads here
+       and exposes window.Html5Qrcode for js/scanner.js to use. -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <!-- Shown until Firebase confirms a signed-in user. -->
+  <div id="gate" class="login-screen" hidden></div>
+
+  <div class="app" id="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-badge">&#9635;</div>
+        <div id="brandName">POS Terminal</div>
+      </div>
+      <nav class="nav" id="nav"></nav>
+      <div class="topbar-right">
+        <div class="status" id="userStatus"></div>
+        <button class="ghost-btn" id="signOutBtn" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <main class="main-panel">
+        <section class="scan-panel">
+          <div class="scan-header">
+            <div class="scan-title">Scan Item</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="secondary-btn" id="cameraBtn" type="button">Use camera</button>
+              <button class="secondary-btn" id="clearCartBtn" type="button">Clear sale</button>
+            </div>
+          </div>
+
+          <div class="scan-input-wrap">
+            <input
+              id="barcodeInput"
+              class="scan-input"
+              type="text"
+              placeholder="Scan barcode or type product code"
+              autocomplete="off"
+              aria-label="Barcode input"
+            />
+            <button class="primary-btn" id="addItemBtn" type="button">Add Item</button>
+          </div>
+
+          <div id="reader"></div>
+          <div id="scanStatus" class="search-result" aria-live="polite"></div>
+        </section>
+
+        <div class="section-header">
+          <div class="section-title">Quick items</div>
+        </div>
+        <div class="quick-items" id="quickItems"></div>
+
+        <div class="section-header">
+          <div class="section-title">Current Sale</div>
+          <div id="itemCount" style="color:var(--muted);font-size:0.9rem;">0 items</div>
+        </div>
+
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="num">Price</th>
+                <th>Qty</th>
+                <th class="num">Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="cartItems"></tbody>
+          </table>
+        </div>
+
+        <div id="receipt" style="display:none;margin-top:18px;"></div>
+      </main>
+
+      <aside class="summary-panel">
+        <div class="summary-card">
+          <h2>Order Summary</h2>
+
+          <div class="metric"><span>Subtotal</span><strong id="subtotalValue">$0.00</strong></div>
+          <div class="metric"><span>Tax</span><strong id="taxValue">$0.00</strong></div>
+          <div class="metric"><span>Discount</span><strong id="discountValue">$0.00</strong></div>
+
+          <div class="divider"></div>
+
+          <div class="total-row">
+            <span>Total</span>
+            <span id="totalValue">$0.00</span>
+          </div>
+
+          <div class="field" style="margin-bottom:10px;">
+            <label for="tendered">Cash tendered</label>
+            <input id="tendered" type="number" min="0" step="0.01" placeholder="0.00" />
+          </div>
+
+          <div class="row" style="gap:6px;margin-bottom:10px;">
+            <button class="ghost-btn" type="button" data-tender="exact" style="flex:1;">Exact</button>
+            <button class="ghost-btn" type="button" data-tender="5" style="flex:1;">5</button>
+            <button class="ghost-btn" type="button" data-tender="10" style="flex:1;">10</button>
+            <button class="ghost-btn" type="button" data-tender="20" style="flex:1;">20</button>
+          </div>
+
+          <div class="metric"><span>Change</span><strong id="changeValue">$0.00</strong></div>
+
+          <div class="payment-actions">
+            <button class="primary-btn" id="payBtn" type="button">Complete sale</button>
+            <button class="danger-btn" id="cancelBtn" type="button">Cancel</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="js/pos.js"></script>
+</body>
+</html>

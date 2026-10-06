@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Catalog</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <div id="gate" class="login-screen" hidden></div>
+
+  <div class="app" id="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-badge">&#9635;</div>
+        <div id="brandName">POS Terminal</div>
+      </div>
+      <nav class="nav" id="nav"></nav>
+      <div class="topbar-right">
+        <div class="status" id="userStatus"></div>
+        <button class="ghost-btn" id="signOutBtn" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <div class="content single">
+      <main class="main-panel">
+        <section class="scan-panel">
+          <div class="scan-header">
+            <div class="scan-title" id="formTitle">Add a product</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="secondary-btn" id="cameraBtn" type="button">Use camera</button>
+              <button class="secondary-btn" id="resetBtn" type="button">New product</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field" style="flex:2;">
+              <label for="barcode">Barcode</label>
+              <input id="barcode" type="text" placeholder="Scan or type a barcode" autocomplete="off" />
+            </div>
+            <div class="field" style="flex:3;">
+              <label for="name">Product name</label>
+              <input id="name" type="text" placeholder="e.g. Coffee beans 1kg" />
+            </div>
+            <div class="field">
+              <label for="price">Price</label>
+              <input id="price" type="number" min="0" step="0.01" placeholder="0.00" />
+            </div>
+            <div class="field">
+              <label for="stock">Stock</label>
+              <input id="stock" type="number" step="1" placeholder="0" />
+            </div>
+            <button class="primary-btn" id="saveBtn" type="button">Save product</button>
+          </div>
+
+          <div id="reader"></div>
+          <div id="scanStatus" class="search-result" aria-live="polite"></div>
+          <p class="hint">
+            Saving with a barcode that already exists updates that product instead of
+            creating a duplicate — the barcode is the product's identity.
+          </p>
+        </section>
+
+        <div class="section-header">
+          <div class="section-title">
+            Products (<span id="count">0</span>)
+          </div>
+          <div class="row" style="gap:8px;">
+            <div class="field" style="min-width:200px;">
+              <label for="filter">Filter</label>
+              <input id="filter" type="search" placeholder="Name or barcode" />
+            </div>
+            <button class="secondary-btn" id="exportBtn" type="button">Export CSV</button>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Barcode</th>
+                <th class="num">Price</th>
+                <th class="num">Stock</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+
+        <div class="section-header" style="margin-top:28px;">
+          <div class="section-title">Store settings</div>
+        </div>
+
+        <div class="card">
+          <div class="row">
+            <div class="field" style="flex:2;">
+              <label for="storeName">Store name</label>
+              <input id="storeName" type="text" placeholder="POS Terminal" />
+            </div>
+            <div class="field">
+              <label for="currency">Currency</label>
+              <select id="currency">
+                <option value="USD">USD $</option>
+                <option value="EUR">EUR &euro;</option>
+                <option value="GBP">GBP &pound;</option>
+                <option value="PHP">PHP &#8369;</option>
+                <option value="AUD">AUD $</option>
+                <option value="CAD">CAD $</option>
+                <option value="INR">INR &#8377;</option>
+                <option value="JPY">JPY &yen;</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="taxRate">Tax rate (%)</label>
+              <input id="taxRate" type="number" min="0" step="0.01" placeholder="8" />
+            </div>
+            <div class="field">
+              <label for="discountMinItems">Discount after (items)</label>
+              <input id="discountMinItems" type="number" min="0" step="1" placeholder="3" />
+            </div>
+            <div class="field">
+              <label for="discountRate">Discount (%)</label>
+              <input id="discountRate" type="number" min="0" step="0.01" placeholder="5" />
+            </div>
+            <button class="primary-btn" id="saveSettingsBtn" type="button">Save settings</button>
+          </div>
+          <p class="hint">
+            Set "Discount after" to 0 to switch the volume discount off.
+          </p>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="js/catalog.js"></script>
+</body>
+</html>

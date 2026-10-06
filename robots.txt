@@ -1,0 +1,7 @@
+# This is an internal staff tool. Keep it out of search engines.
+#
+# NOTE: this is a politeness signal, not a security control. Well-behaved
+# crawlers honour it; anyone can ignore it. Real protection comes from
+# requiring sign-in (js/auth.js) plus the Firestore rules in firestore.rules.
+User-agent: *
+Disallow: /
