@@ -212,9 +212,15 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
   box-shadow: 0 0 0 4px rgba(47, 111, 237, 0.12);
 }
 
-/* Live camera reader */
-#reader { width: 100%; border-radius: 14px; overflow: hidden; margin-top: 14px; }
-#reader:empty { display: none; }
+/* Live camera reader.
+   Hidden while idle so an empty box does not sit on the page, but shown by
+   js/scanner.js ADDING .active BEFORE it calls start(). This must not be done
+   with :empty - html5-qrcode renders into this element and sizes the scan
+   region from what it measures, so a display:none container measures 0x0, the
+   qrbox collapses to 0x0, and the viewfinder stays invisible even after the
+   video has real dimensions. */
+#reader { display: none; width: 100%; border-radius: 14px; overflow: hidden; margin-top: 14px; }
+#reader.active { display: block; }
 
 /* ------------------------------------------------------------ forms --- */
 

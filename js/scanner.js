@@ -90,6 +90,14 @@ export function createScanner({ elementId, onScan, onError = () => {} }) {
   let lastCode = null;
   let lastCodeAt = 0;
 
+  // html5-qrcode renders its video into this element and sizes the scan region
+  // from what it measures there. If the element is display:none at that moment
+  // it measures 0x0, the qrbox collapses to 0x0 along with it, and the
+  // viewfinder stays invisible even once real frames arrive. So the container
+  // has to be laid out BEFORE start() runs, not revealed afterwards - hence
+  // the .active class, added below rather than left to the CSS alone.
+  const container = document.getElementById(elementId);
+
   function handleDecoded(decodedText, decodedResult) {
     const code = String(decodedText).trim();
     const now = Date.now();
@@ -110,6 +118,10 @@ export function createScanner({ elementId, onScan, onError = () => {} }) {
       onError("Scanner library failed to load. Check your connection and reload.");
       return;
     }
+    if (!container) {
+      onError("Camera area not found on this page.");
+      return;
+    }
 
     const formats = supportedFormats();
     const options = {
@@ -117,9 +129,12 @@ export function createScanner({ elementId, onScan, onError = () => {} }) {
     };
     if (formats) options.formatsToSupport = formats;
 
-    scanner = new Html5Qrcode(elementId, options);
+    // Shown first, so the library measures a laid-out element rather than a
+    // hidden one. Removed again if anything below fails.
+    container.classList.add("active");
 
     try {
+      scanner = new Html5Qrcode(elementId, options);
       await scanner.start(
         { facingMode: "environment" },
         { fps: 15, qrbox: qrboxFunction },
@@ -128,6 +143,7 @@ export function createScanner({ elementId, onScan, onError = () => {} }) {
       );
       running = true;
     } catch (err) {
+      container.classList.remove("active");
       scanner = null;
       onError(describeCameraError(err));
     }
@@ -144,6 +160,7 @@ export function createScanner({ elementId, onScan, onError = () => {} }) {
     scanner = null;
     running = false;
     lastCode = null;
+    if (container) container.classList.remove("active");
   }
 
   return { start, stop, isRunning: () => running };
