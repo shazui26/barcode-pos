@@ -6,8 +6,13 @@
   <title>Point of Sale</title>
   <link rel="stylesheet" href="css/styles.css" />
   <!-- html5-qrcode is a classic script (not an ES module), so it loads here
-       and exposes window.Html5Qrcode for js/scanner.js to use. -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+       and exposes window.Html5Qrcode for js/scanner.js to use.
+       `defer` keeps it off the critical path: it is a large library, and the
+       USB-scanner and typed-code tills never touch it. Deferred classic scripts
+       still run before the deferred module at the foot of the page, and
+       js/scanner.js only reaches for window.Html5Qrcode when a camera is
+       actually started, so nothing here depends on it having loaded. -->
+  <script defer src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body class="page-pos">
   <!-- Shown until Firebase confirms a signed-in user. -->

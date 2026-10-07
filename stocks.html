@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Stocks</title>
   <link rel="stylesheet" href="css/styles.css" />
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- Deferred, like index.html: the scan-by-camera path is the only one that
+       needs this, and the page should not wait on it to paint. -->
+  <script defer src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body class="page-stocks">
   <div id="gate" class="login-screen" hidden></div>

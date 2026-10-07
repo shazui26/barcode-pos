@@ -9,11 +9,7 @@
    ========================================================================== */
 
 import { mountAuth, signOutUser } from "./auth.js";
-import {
-  createScanner,
-  cameraPermissionState,
-  CAMERA_BLOCKED_HELP
-} from "./scanner.js";
+import { createScanner, wireCameraButton } from "./scanner.js";
 import {
   costRecorded,
   getProduct,
@@ -21,12 +17,29 @@ import {
   subscribeProducts,
   subscribeSettings
 } from "./store.js";
-import { money, renderShell, setCurrency, showStatus, clearStatus, toast } from "./ui.js";
+import {
+  clearStatus,
+  describeFirestoreError,
+  escapeHtml as esc,
+  money,
+  renderShell,
+  setCurrency,
+  showStatus,
+  toast
+} from "./ui.js";
 
 const el = (id) => document.getElementById(id);
 
 let user = null;
 let products = [];
+
+/* By-barcode index of `products`, rebuilt whenever the snapshot arrives.
+   `products` is still kept as a list because the quick-item grid wants one, but
+   every by-barcode lookup goes through here instead of a linear find. The cart
+   re-renders on every scan and the summary on every keystroke in the cash
+   field, and each of those used to walk the whole catalogue once per line. */
+let byBarcode = new Map();
+
 let settings = { taxRate: 0.08, discountMinItems: 3, discountRate: 0.05, currency: "USD" };
 let cart = [];
 let lastSale = null;
@@ -40,7 +53,6 @@ let productsLoaded = false;
 // without needing to know anything about the DOM.
 let collapseSummary = () => {};
 
-const LOW_STOCK = 5;
 const CART_KEY = () => `pos_cart_${user?.uid || "anon"}`;
 
 /* ---------------------------------------------------------- lifecycle --- */
@@ -72,6 +84,7 @@ mountAuth({
     subscribeProducts(
       (list) => {
         products = list;
+        byBarcode = new Map(list.map((p) => [p.barcode, p]));
         productsLoaded = true;
         // Refreshes the cart too: its stock warnings and the quick-item tiles
         // both read from this list, so they follow it as it changes.
@@ -207,9 +220,6 @@ function measureBottomBar() {
 /* ------------------------------------------------------------ camera --- */
 
 function wireCamera() {
-  const cameraBtn = el("cameraBtn");
-  let starting = false;
-
   const scanner = createScanner({
     elementId: "reader",
     onScan: (code) => {
@@ -219,37 +229,13 @@ function wireCamera() {
     onError: (message) => showStatus(el("scanStatus"), message, "error")
   });
 
-  // A blocked camera is sticky: the browser will not prompt again, so letting
-  // the user press the button to discover that just wastes their time. Say so
-  // as soon as the page is ready instead.
-  cameraPermissionState().then((state) => {
-    if (state === "denied") {
-      showStatus(el("scanStatus"), CAMERA_BLOCKED_HELP, "error");
-    }
+  wireCameraButton({
+    button: el("cameraBtn"),
+    scanner,
+    onRunning: () =>
+      showStatus(el("scanStatus"), "Camera running — point it at a barcode.", "info"),
+    onBlocked: (message) => showStatus(el("scanStatus"), message, "error")
   });
-
-  cameraBtn.onclick = async () => {
-    if (starting) return;
-
-    if (scanner.isRunning()) {
-      await scanner.stop();
-      cameraBtn.textContent = "Use camera";
-      cameraBtn.classList.add("secondary-btn");
-      return;
-    }
-
-    starting = true;
-    cameraBtn.textContent = "Starting…";
-    await scanner.start();
-    starting = false;
-
-    if (scanner.isRunning()) {
-      cameraBtn.textContent = "Stop camera";
-      showStatus(el("scanStatus"), "Camera running — point it at a barcode.", "info");
-    } else {
-      cameraBtn.textContent = "Use camera";
-    }
-  };
 }
 
 /* -------------------------------------------------------------- cart --- */
@@ -363,7 +349,7 @@ function oversoldLine() {
   if (!productsLoaded) return null;
 
   for (const item of cart) {
-    const product = products.find((p) => p.barcode === item.barcode);
+    const product = byBarcode.get(item.barcode);
     if (!product || item.qty > stockOf(product)) {
       return {
         item,
@@ -405,7 +391,7 @@ async function addByBarcodeInput(presetCode) {
   // moment before the first snapshot arrives (the list is still empty), and a
   // product added on another device a beat ago, before its snapshot reaches
   // this one.
-  let product = products.find((p) => p.barcode === code) || null;
+  let product = byBarcode.get(code) || null;
 
   if (!product) {
     try {
@@ -440,7 +426,7 @@ function changeQty(barcode, delta) {
   // The + button is already disabled once the line has taken everything on the
   // shelf, so this only catches the routes that do not render such a button.
   if (delta > 0) {
-    const product = products.find((p) => p.barcode === barcode);
+    const product = byBarcode.get(barcode);
     if (!product) {
       showStatus(el("scanStatus"), `${item.name} is no longer in the stock list.`, "error");
       return;
@@ -467,7 +453,7 @@ function removeLine(barcode) {
 
 /** One cart row, flagged when the line cannot be sold as it stands. */
 function renderLine(item) {
-  const product = products.find((p) => p.barcode === item.barcode);
+  const product = byBarcode.get(item.barcode);
   const onHand = product ? stockOf(product) : 0;
 
   // Before the first snapshot there is nothing to compare against, so say
@@ -578,20 +564,25 @@ function renderQuickItems() {
     return;
   }
 
+  // How much of each tile is already in the sale, gathered in one pass rather
+  // than by re-walking the cart once per tile.
+  const inCart = new Map(cart.map((i) => [i.barcode, i.qty]));
+
   container.innerHTML = featured
-    .map(
-      (p) => `
-      <button type="button" class="quick-item${roomFor(p) <= 0 ? " out" : ""}"
+    .map((p) => {
+      const room = stockOf(p) - (inCart.get(p.barcode) || 0);
+      return `
+      <button type="button" class="quick-item${room <= 0 ? " out" : ""}"
               data-barcode="${esc(p.barcode)}">
         <h4>${esc(p.name)}</h4>
         <span>${money(p.price)}</span>
-      </button>`
-    )
+      </button>`;
+    })
     .join("");
 
   container.querySelectorAll(".quick-item").forEach((btn) => {
     btn.onclick = () => {
-      const product = products.find((p) => p.barcode === btn.dataset.barcode);
+      const product = byBarcode.get(btn.dataset.barcode);
       if (!product) return;
       addOne(product, el("scanStatus"));
     };
@@ -674,7 +665,13 @@ async function completeSale() {
     el("barcodeInput").focus();
   } catch (err) {
     console.error(err);
-    toast(describeFirestoreError(err), "error");
+    // The transaction can now refuse a sale on its own account - a line that
+    // was fine a moment ago but whose shelf has emptied since. That reason
+    // belongs next to the cart, not only in a toast that times out.
+    const reason = describeFirestoreError(err);
+    collapseSummary();
+    showStatus(el("scanStatus"), reason, "error");
+    toast(reason, "error");
   } finally {
     payBtn.textContent = "Complete sale";
     renderSummary();
@@ -758,26 +755,4 @@ function loadCart() {
  */
 function round2(n) {
   return Math.round(n * 100) / 100;
-}
-
-/** Local HTML escaper — deliberately not named `escape` so it does not shadow
- *  the deprecated global of the same name. */
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
-}
-
-function describeFirestoreError(err) {
-  const code = err?.code || "";
-  if (code.includes("permission-denied")) {
-    return "Permission denied. Check that the Firestore rules are published and you are signed in.";
-  }
-  if (code.includes("unavailable")) {
-    return "Cannot reach Firestore — check your connection.";
-  }
-  if (code.includes("failed-precondition")) {
-    return "Firestore needs an index for this query. Check the browser console for a creation link.";
-  }
-  return err?.message || "Something went wrong talking to the database.";
 }

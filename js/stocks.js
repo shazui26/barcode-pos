@@ -6,11 +6,7 @@
    ========================================================================== */
 
 import { mountAuth, signOutUser } from "./auth.js";
-import {
-  createScanner,
-  cameraPermissionState,
-  CAMERA_BLOCKED_HELP
-} from "./scanner.js";
+import { createScanner, wireCameraButton } from "./scanner.js";
 import {
   costRecorded,
   deleteProduct,
@@ -19,7 +15,15 @@ import {
   subscribeSettings,
   upsertProduct
 } from "./store.js";
-import { money, renderShell, setCurrency, showStatus, toast } from "./ui.js";
+import {
+  describeFirestoreError,
+  escapeHtml as esc,
+  money,
+  renderShell,
+  setCurrency,
+  showStatus,
+  toast
+} from "./ui.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -114,9 +118,6 @@ function wireEvents() {
 }
 
 function wireCamera() {
-  const cameraBtn = el("cameraBtn");
-  let starting = false;
-
   const scanner = createScanner({
     elementId: "reader",
     onScan: (code) => {
@@ -135,36 +136,13 @@ function wireCamera() {
     onError: (message) => showStatus(el("scanStatus"), message, "error")
   });
 
-  // A blocked camera is sticky: the browser will not prompt again, so letting
-  // the user press the button to discover that just wastes their time. Say so
-  // as soon as the page is ready instead.
-  cameraPermissionState().then((state) => {
-    if (state === "denied") {
-      showStatus(el("scanStatus"), CAMERA_BLOCKED_HELP, "error");
-    }
+  wireCameraButton({
+    button: el("cameraBtn"),
+    scanner,
+    onRunning: () =>
+      showStatus(el("scanStatus"), "Camera running — point it at a barcode.", "info"),
+    onBlocked: (message) => showStatus(el("scanStatus"), message, "error")
   });
-
-  cameraBtn.onclick = async () => {
-    if (starting) return;
-
-    if (scanner.isRunning()) {
-      await scanner.stop();
-      cameraBtn.textContent = "Use camera";
-      return;
-    }
-
-    starting = true;
-    cameraBtn.textContent = "Starting…";
-    await scanner.start();
-    starting = false;
-
-    if (scanner.isRunning()) {
-      cameraBtn.textContent = "Stop camera";
-      showStatus(el("scanStatus"), "Camera running — point it at a barcode.", "info");
-    } else {
-      cameraBtn.textContent = "Use camera";
-    }
-  };
 }
 
 /* ------------------------------------------------------------- save ----- */
@@ -172,9 +150,14 @@ function wireCamera() {
 async function saveProduct() {
   const barcode = el("barcode").value.trim();
   const name = el("name").value.trim();
-  const cost = Number(el("cost").value) || 0;
   const price = Number(el("price").value) || 0;
   const stock = Number(el("stock").value) || 0;
+
+  // A blank Original price is not a cost of nothing, it is an unknown cost —
+  // the distinction costRecorded() exists to keep. Pass null through and
+  // store.js leaves the field off the document rather than recording 0.
+  const costField = el("cost").value.trim();
+  const cost = costField === "" ? null : Number(costField);
 
   if (!barcode) {
     showStatus(el("scanStatus"), "A barcode is required — scan one or type it.", "error");
@@ -404,26 +387,4 @@ function exportCsv() {
   a.click();
   URL.revokeObjectURL(url);
   toast("CSV exported");
-}
-
-/* ------------------------------------------------------------- utils --- */
-
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
-}
-
-function describeFirestoreError(err) {
-  const code = err?.code || "";
-  if (code.includes("permission-denied")) {
-    return "Permission denied. Check that the Firestore rules are published and you are signed in.";
-  }
-  if (code.includes("unavailable")) {
-    return "Cannot reach Firestore — check your connection.";
-  }
-  if (code.includes("failed-precondition")) {
-    return "Firestore needs an index for this query. Check the browser console for a creation link.";
-  }
-  return err?.message || "Something went wrong talking to the database.";
 }

@@ -13,7 +13,15 @@ import {
   fetchRecentSales,
   subscribeProducts,
   subscribeSettings
-} from "./store.js";import { money, renderShell, setCurrency, showStatus, toast } from "./ui.js";
+} from "./store.js";
+import {
+  describeFirestoreError,
+  escapeHtml as esc,
+  money,
+  renderShell,
+  setCurrency,
+  toast
+} from "./ui.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -71,11 +79,7 @@ mountAuth({
 
     el("rows").addEventListener("click", (event) => {
       const row = event.target.closest("tr.sale-row");
-      if (!row) return;
-      const id = row.dataset.id;
-      if (expanded.has(id)) expanded.delete(id);
-      else expanded.add(id);
-      render();
+      if (row) toggleDetail(row);
     });
 
     await load();
@@ -164,20 +168,49 @@ function render() {
         </tr>`;
 
       if (!open) return main;
+      return main + detailRow(sale);
+    })
+    .join("");
+}
 
-      const lines = (sale.items || [])
-        .map(
-          (i) => `<tr>
+/**
+ * Open or close one sale's line items.
+ *
+ * Deliberately does not call render(). The figures above the table depend on
+ * which sales are in range, not on which of them are unfolded, so a full render
+ * here would rebuild up to MAX_SALES rows and re-run analyse() over every line
+ * item in the period just to show or hide one row.
+ */
+function toggleDetail(row) {
+  const id = row.dataset.id;
+  const next = row.nextElementSibling;
+
+  if (next && next.classList.contains("detail-row")) {
+    next.remove();
+    expanded.delete(id);
+    return;
+  }
+
+  const sale = allSales.find((s) => s.id === id);
+  if (!sale) return;
+
+  expanded.add(id);
+  row.insertAdjacentHTML("afterend", detailRow(sale));
+}
+
+/** The unfolded body of one sale. */
+function detailRow(sale) {
+  const lines = (sale.items || [])
+    .map(
+      (i) => `<tr>
             <td colspan="4">${esc(i.name)}</td>
-            <td class="num">${i.qty} &times; ${money(i.price)}</td>
+            <td class="num">${esc(i.qty)} &times; ${money(i.price)}</td>
             <td class="num">${money((Number(i.price) || 0) * (Number(i.qty) || 0))}</td>
           </tr>`
-        )
-        .join("");
+    )
+    .join("");
 
-      return (
-        main +
-        `<tr class="detail-row"><td colspan="6"><div class="detail-inner">
+  return `<tr class="detail-row"><td colspan="6"><div class="detail-inner">
            <table>
              ${lines || '<tr><td colspan="6">No line items stored on this sale.</td></tr>'}
              ${sale.discount ? `<tr><td colspan="4">Discount</td><td class="num">-${money(sale.discount)}</td><td></td></tr>` : ""}
@@ -187,10 +220,7 @@ function render() {
                <td class="num">${money(sale.change)}</td>
              </tr>
            </table>
-         </div></td></tr>`
-      );
-    })
-    .join("");
+         </div></td></tr>`;
 }
 
 /* ---------------------------------------------------------- insights --- */
@@ -325,24 +355,4 @@ function toDate(value) {
   if (typeof value.toDate === "function") return value.toDate();
   const d = new Date(value);
   return isNaN(d) ? null : d;
-}
-
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
-}
-
-function describeFirestoreError(err) {
-  const code = err?.code || "";
-  if (code.includes("permission-denied")) {
-    return "Permission denied. Check that the Firestore rules are published and you are signed in.";
-  }
-  if (code.includes("unavailable")) {
-    return "Cannot reach Firestore — check your connection.";
-  }
-  if (code.includes("failed-precondition")) {
-    return "Firestore needs an index for this query. Check the browser console for a creation link.";
-  }
-  return err?.message || "Something went wrong talking to the database.";
 }

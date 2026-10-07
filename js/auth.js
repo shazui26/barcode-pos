@@ -17,7 +17,7 @@ import {
   signInWithEmailAndPassword,
   signOut
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import { renderSetupNotice, toast } from "./ui.js";
+import { escapeHtml, renderSetupNotice, toast } from "./ui.js";
 
 /** How long to wait for the auth backend before telling the user something. */
 const AUTH_TIMEOUT_MS = 10000;
@@ -108,7 +108,7 @@ function renderGateError(gateEl, message) {
         <div>POS Terminal</div>
       </div>
       <h1>Cannot sign in</h1>
-      <div class="search-result visible error" style="text-align:left;">${message}</div>
+      <div class="search-result visible error" style="text-align:left;">${escapeHtml(message)}</div>
       <button class="primary-btn" type="button" id="retryBtn"
               style="width:100%;margin-top:16px;">Try again</button>
     </div>`;

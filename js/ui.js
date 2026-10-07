@@ -71,6 +71,30 @@ export function clearStatus(el) {
   el.textContent = "";
 }
 
+/* ------------------------------------------------------- error text --- */
+
+/**
+ * Turn a Firestore failure into a sentence a cashier can act on.
+ *
+ * Shared by all three pages, which used to carry a verbatim copy each. The four
+ * cases below are the ones that actually happen in a shop — rules never
+ * published, no signal, a missing index — and each has a different fix, so a
+ * single vague message would not do.
+ */
+export function describeFirestoreError(err) {
+  const code = err?.code || "";
+  if (code.includes("permission-denied")) {
+    return "Permission denied. Check that the Firestore rules are published and you are signed in.";
+  }
+  if (code.includes("unavailable")) {
+    return "Cannot reach Firestore — check your connection.";
+  }
+  if (code.includes("failed-precondition")) {
+    return "Firestore needs an index for this query. Check the browser console for a creation link.";
+  }
+  return err?.message || "Something went wrong talking to the database.";
+}
+
 /* ------------------------------------------------------------ shell --- */
 
 /* `icon` is a plain text glyph, shown only in the mobile bottom tab bar; the

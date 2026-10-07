@@ -34,20 +34,19 @@
 
 import { db } from "./firebase.js";
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
   getDoc,
   getDocs,
   increment,
+  limit,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
-  setDoc,
-  writeBatch,
-  limit
+  setDoc
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
 export const DEFAULT_SETTINGS = {
@@ -95,15 +94,25 @@ export async function getProduct(barcode) {
 /** Create or overwrite a product, keyed by barcode. */
 export async function upsertProduct({ barcode, name, price, cost, stock }, user) {
   const id = String(barcode).trim();
-  await setDoc(doc(db, "products", id), {
+
+  const record = {
     barcode: id,
     name: String(name).trim(),
     price: Number(price) || 0,
-    cost: Number(cost) || 0,
     stock: Number(stock) || 0,
     updatedAt: serverTimestamp(),
     updatedBy: user?.email || "unknown"
-  });
+  };
+
+  // Only written when a cost was actually entered. This is a non-merge setDoc,
+  // so leaving the key out also clears a cost that used to be on file - and a
+  // blank Original price means exactly that, the cost is unknown. Writing 0
+  // instead would read back as a *recorded* cost of nothing (see
+  // costRecorded), which reports the whole selling price as profit and never
+  // raises the "no cost" warning that figure depends on.
+  if (costRecorded(cost)) record.cost = Number(cost) || 0;
+
+  await setDoc(doc(db, "products", id), record);
   return id;
 }
 
@@ -141,42 +150,60 @@ export async function saveSettings(settings) {
 /* ------------------------------------------------------------ sales --- */
 
 /**
- * Commit a sale atomically: append the sale record AND decrement stock for
- * every line item. A batch makes this all-or-nothing, so a sale can never be
- * recorded without its stock movement (or vice versa).
+ * Commit a sale: append the sale record AND decrement stock for every line
+ * item, so a sale can never be recorded without its stock movement.
  *
- * `set(..., {merge:true})` + `increment` is deliberate: it works whether or
- * not the product document already exists, so selling an unstocked item still
- * records the sale instead of failing the whole batch.
+ * A transaction rather than a batch, because a batch is only all-or-nothing -
+ * it re-checks nothing. Two tills ringing the last unit at the same moment
+ * would each have passed the POS's own stock check and both decremented,
+ * leaving the shelf at -1. Reading every product inside the transaction makes
+ * the check part of the write: the second till's read sees the first till's
+ * committed decrement and is refused instead of overselling.
+ *
+ * All reads are gathered before any write is issued, which the SDK requires.
+ * A product that no longer exists is skipped rather than created - `set` with
+ * a merge would otherwise leave a nameless ghost product with negative stock
+ * for the Stocks page to list.
  */
 export async function recordSale(sale, user) {
-  const batch = writeBatch(db);
+  const lines = sale.items.map((item) => ({
+    ...item,
+    ref: doc(db, "products", String(item.barcode))
+  }));
 
-  batch.set(doc(collection(db, "sales")), {
-    items: sale.items,
-    subtotal: sale.subtotal,
-    taxRate: sale.taxRate,
-    tax: sale.tax,
-    discountRate: sale.discountRate,
-    discount: sale.discount,
-    total: sale.total,
-    tendered: sale.tendered,
-    change: sale.change,
-    itemCount: sale.itemCount,
-    cashierUid: user?.uid || null,
-    cashierEmail: user?.email || "unknown",
-    createdAt: serverTimestamp()
+  await runTransaction(db, async (tx) => {
+    const snaps = [];
+    for (const line of lines) snaps.push(await tx.get(line.ref));
+
+    lines.forEach((line, i) => {
+      if (!snaps[i].exists()) return;
+
+      const onHand = Number(snaps[i].data().stock) || 0;
+      if (onHand < line.qty) {
+        throw new Error(
+          `${line.name}: only ${onHand} in stock but ${line.qty} in this sale — reduce it to continue.`
+        );
+      }
+
+      tx.update(line.ref, { stock: increment(-line.qty) });
+    });
+
+    tx.set(doc(collection(db, "sales")), {
+      items: sale.items,
+      subtotal: sale.subtotal,
+      taxRate: sale.taxRate,
+      tax: sale.tax,
+      discountRate: sale.discountRate,
+      discount: sale.discount,
+      total: sale.total,
+      tendered: sale.tendered,
+      change: sale.change,
+      itemCount: sale.itemCount,
+      cashierUid: user?.uid || null,
+      cashierEmail: user?.email || "unknown",
+      createdAt: serverTimestamp()
+    });
   });
-
-  for (const item of sale.items) {
-    batch.set(
-      doc(db, "products", String(item.barcode)),
-      { stock: increment(-item.qty) },
-      { merge: true }
-    );
-  }
-
-  await batch.commit();
 }
 
 /** Most recent sales, newest first. */

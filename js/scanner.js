@@ -166,6 +166,47 @@ export function createScanner({ elementId, onScan, onError = () => {} }) {
   return { start, stop, isRunning: () => running };
 }
 
+/**
+ * Wire a "Use camera" toggle button to a scanner.
+ *
+ * Both pages offer the same button with the same three states - idle, starting
+ * and running - so the button dance lives here rather than being written out
+ * twice. The pages differ only in where they report, hence the callbacks.
+ *
+ * A blocked camera is checked up front as well, because a block is sticky: the
+ * browser will not prompt again, so letting the user press the button to
+ * discover that just wastes their time.
+ */
+export function wireCameraButton({ button, scanner, onRunning, onBlocked }) {
+  let starting = false;
+
+  cameraPermissionState().then((state) => {
+    if (state === "denied") onBlocked(CAMERA_BLOCKED_HELP);
+  });
+
+  button.onclick = async () => {
+    if (starting) return;
+
+    if (scanner.isRunning()) {
+      await scanner.stop();
+      button.textContent = "Use camera";
+      return;
+    }
+
+    starting = true;
+    button.textContent = "Starting…";
+    await scanner.start();
+    starting = false;
+
+    if (scanner.isRunning()) {
+      button.textContent = "Stop camera";
+      onRunning();
+    } else {
+      button.textContent = "Use camera";
+    }
+  };
+}
+
 /** Camera failures are common and confusing; say what actually went wrong. */
 function describeCameraError(err) {
   const name = err?.name || "";
