@@ -3,6 +3,8 @@
 
    Scanning (camera or a USB keyboard-wedge scanner, which types the code and
    presses Enter) looks the barcode up in Firestore and drops it in the cart.
+   Stock is a hard ceiling: a scan that would take the sale past what is on the
+   shelf is refused rather than added, and checkout re-checks before writing.
    Completing a sale writes the sale record and decrements stock atomically.
    ========================================================================== */
 
@@ -27,6 +29,11 @@ let products = [];
 let settings = { taxRate: 0.08, discountMinItems: 3, discountRate: 0.05, currency: "USD" };
 let cart = [];
 let lastSale = null;
+
+/* False until the live product list arrives. Stock is unknowable before then,
+   and a cart restored from localStorage would otherwise look oversold for the
+   first moment the page is up. */
+let productsLoaded = false;
 
 // Assigned by wireSummarySheet, so completeSale can close the mobile sheet
 // without needing to know anything about the DOM.
@@ -64,7 +71,10 @@ mountAuth({
     subscribeProducts(
       (list) => {
         products = list;
-        renderQuickItems();
+        productsLoaded = true;
+        // Refreshes the cart too: its stock warnings and the quick-item tiles
+        // both read from this list, so they follow it as it changes.
+        renderCart();
       },
       (err) => {
         console.error("products", err);
@@ -87,7 +97,7 @@ function wireEvents() {
   if (wired) return;
   wired = true;
 
-  el("addItemBtn").onclick = addByBarcodeInput;
+  el("addItemBtn").onclick = () => addByBarcodeInput();
 
   // USB barcode scanners behave as keyboards and send Enter after the code.
   el("barcodeInput").addEventListener("keydown", (event) => {
@@ -132,6 +142,7 @@ function wireEvents() {
 
   wireCamera();
   wireSummarySheet();
+  measureBottomBar();
 }
 
 /* ------------------------------------------------- summary bottom sheet --- */
@@ -163,6 +174,33 @@ function wireSummarySheet() {
   if (backdrop) backdrop.onclick = () => setOpen(false);
 
   collapseSummary = () => setOpen(false);
+}
+
+/**
+ * Keep the page's bottom padding equal to how tall the summary bar actually is.
+ *
+ * The stylesheet reserves a fixed guess (--bottombar-h) for that bar, but the
+ * bar is exactly as tall as its contents - and it grows when the stock warning
+ * appears. A guess that is too small does not merely look untidy: it parks the
+ * last line of the cart underneath the bar, where no amount of scrolling will
+ * bring it back. Measuring is the only way to stay correct.
+ *
+ * Only --bottombar-h is written. --tabbar-h sizes the tabs themselves, so
+ * feeding a measured height back into it would be a loop.
+ */
+function measureBottomBar() {
+  const panel = document.querySelector(".summary-panel");
+  if (!panel) return;
+
+  const apply = () =>
+    document.documentElement.style.setProperty("--bottombar-h", `${panel.offsetHeight}px`);
+
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(apply).observe(panel);
+  } else {
+    window.addEventListener("resize", apply);
+  }
+  apply();
 }
 
 /* ------------------------------------------------------------ camera --- */
@@ -249,8 +287,103 @@ function addItemByProduct(product) {
   renderCart();
 }
 
+/* ------------------------------------------------------- stock checks --- */
+
+/**
+ * Units on hand. Missing, non-numeric and negative counts all read as 0 — the
+ * same rule the Stocks page uses for its "Out" badge, so a product that looks
+ * unsellable there is unsellable here.
+ */
+function stockOf(product) {
+  return Math.max(0, Number(product?.stock) || 0);
+}
+
+function qtyInCart(barcode) {
+  return cart.find((i) => i.barcode === barcode)?.qty || 0;
+}
+
+/**
+ * How many more units of `product` this sale may take. Stock is the ceiling and
+ * whatever is already in the cart has spent part of it.
+ */
+function roomFor(product) {
+  return stockOf(product) - qtyInCart(product.barcode);
+}
+
+/**
+ * Why a unit could not be added. "Nothing on the shelf" and "everything on the
+ * shelf is already in the sale" call for different actions, so they get
+ * different sentences rather than one vague refusal.
+ */
+function refuseMessage(product) {
+  const onHand = stockOf(product);
+
+  if (onHand <= 0) {
+    return `${product.name} is out of stock and cannot be sold. Restock it on the Stocks page.`;
+  }
+  return `Only ${onHand} of ${product.name} in stock, and all ${onHand} are already in this sale.`;
+}
+
+/**
+ * Put one unit in the cart, or refuse and say why.
+ *
+ * Every route into the cart goes through here — a scan, the Add Item button, a
+ * quick-item tile and the + stepper — because one unguarded route is a route
+ * that oversells.
+ */
+function addOne(product, statusEl) {
+  if (roomFor(product) <= 0) {
+    showStatus(statusEl, refuseMessage(product), "error");
+    return false;
+  }
+
+  addItemByProduct(product);
+  showStatus(statusEl, `${product.name} added.`, "success");
+  return true;
+}
+
+/**
+ * The first cart line that cannot be sold as it stands, or null.
+ *
+ * The cart outlives the tab — it is restored from localStorage — and stock
+ * moves while it sits there, so a line that was fine when it was scanned may
+ * not be fine by the time the cashier rings it up. Checkout runs this against
+ * the live product list rather than trusting what was true at scan time.
+ */
+function oversoldLine() {
+  if (!productsLoaded) return null;
+
+  for (const item of cart) {
+    const product = products.find((p) => p.barcode === item.barcode);
+    if (!product || item.qty > stockOf(product)) {
+      return {
+        item,
+        onHand: product ? stockOf(product) : 0,
+        stocked: Boolean(product)
+      };
+    }
+  }
+  return null;
+}
+
+function blockedMessage({ item, onHand, stocked }) {
+  if (!stocked) {
+    return `${item.name} is no longer in the stock list — remove it to continue.`;
+  }
+  if (onHand <= 0) {
+    return `${item.name} is out of stock — remove it or restock it to continue.`;
+  }
+  return `${item.name}: only ${onHand} in stock but ${item.qty} in this sale — reduce it to continue.`;
+}
+
 async function addByBarcodeInput(presetCode) {
-  const code = String(presetCode ?? el("barcodeInput").value).trim();
+  // Only a string is a barcode. The Add Item handler used to be this function
+  // itself, so the click event arrived here as `presetCode` and was looked up
+  // as one - and because an event object is truthy, the input box was never
+  // read. The handler now wraps the call; this check keeps a repeat of that
+  // mistake from silently returning to the same bug.
+  const preset = typeof presetCode === "string" ? presetCode.trim() : "";
+  const code = preset || el("barcodeInput").value.trim();
   if (!code) {
     showStatus(el("scanStatus"), "Scan or type a barcode first.", "error");
     return;
@@ -267,35 +400,38 @@ async function addByBarcodeInput(presetCode) {
   if (!product) {
     showStatus(
       el("scanStatus"),
-      `Barcode "${code}" is not in the catalog. Add it on the Catalog page first.`,
+      `Barcode "${code}" is not a known product. Add it on the Stocks page first.`,
       "error"
     );
     return;
   }
 
-  addItemByProduct(product);
+  addOne(product, el("scanStatus"));
+
+  // Cleared either way: the code has been dealt with, and a refused item left
+  // sitting in the box only invites a second Enter that fails the same way.
   el("barcodeInput").value = "";
   el("barcodeInput").focus();
-
-  const remaining = (Number(product.stock) || 0) - qtyInCart(product.barcode);
-  if (remaining < 0) {
-    showStatus(
-      el("scanStatus"),
-      `${product.name} added — but stock says ${product.stock ?? 0}, so this oversells.`,
-      "error"
-    );
-  } else {
-    showStatus(el("scanStatus"), `${product.name} added.`, "success");
-  }
-}
-
-function qtyInCart(barcode) {
-  return cart.find((i) => i.barcode === barcode)?.qty || 0;
 }
 
 function changeQty(barcode, delta) {
   const item = cart.find((i) => i.barcode === barcode);
   if (!item) return;
+
+  // The + button is already disabled once the line has taken everything on the
+  // shelf, so this only catches the routes that do not render such a button.
+  if (delta > 0) {
+    const product = products.find((p) => p.barcode === barcode);
+    if (!product) {
+      showStatus(el("scanStatus"), `${item.name} is no longer in the stock list.`, "error");
+      return;
+    }
+    if (roomFor(product) <= 0) {
+      showStatus(el("scanStatus"), refuseMessage(product), "error");
+      return;
+    }
+  }
+
   item.qty += delta;
   if (item.qty <= 0) cart = cart.filter((i) => i.barcode !== barcode);
   saveCart();
@@ -310,25 +446,33 @@ function removeLine(barcode) {
 
 /* ------------------------------------------------------------ render --- */
 
-function renderCart() {
-  const tbody = el("cartItems");
+/** One cart row, flagged when the line cannot be sold as it stands. */
+function renderLine(item) {
+  const product = products.find((p) => p.barcode === item.barcode);
+  const onHand = product ? stockOf(product) : 0;
 
-  if (!cart.length) {
-    tbody.innerHTML = `
-      <tr><td colspan="5">
-        <div class="empty-state">No items yet. Scan a barcode to begin.</div>
-      </td></tr>`;
-    renderSummary();
-    return;
-  }
+  // Before the first snapshot there is nothing to compare against, so say
+  // nothing rather than flash a warning that is not yet true.
+  const gone = productsLoaded && !product;
+  const out = productsLoaded && product && onHand <= 0;
+  const short = productsLoaded && product && onHand > 0 && item.qty > onHand;
+  const unsellable = gone || out || short;
 
-  tbody.innerHTML = cart
-    .map(
-      (item) => `
-      <tr>
+  // The line has taken the whole shelf, so the + says so before it is tapped
+  // rather than refusing afterwards.
+  const full = productsLoaded && !unsellable && item.qty >= onHand;
+
+  let note = "";
+  if (gone) note = "No longer in the stock list";
+  else if (out) note = "Out of stock";
+  else if (short) note = `Only ${onHand} in stock`;
+
+  return `
+      <tr${unsellable ? ' class="unsellable"' : ""}>
         <td>
           <div class="item-name">${esc(item.name)}</div>
           <div class="item-sub">#${esc(item.barcode)}</div>
+          ${note ? `<div class="item-warn">${esc(note)}</div>` : ""}
         </td>
         <td class="num" data-label="Price">${money(item.price)}</td>
         <td data-label="Qty">
@@ -337,7 +481,7 @@ function renderCart() {
                     aria-label="Decrease quantity">&minus;</button>
             <span>${item.qty}</span>
             <button type="button" data-action="increase" data-barcode="${esc(item.barcode)}"
-                    aria-label="Increase quantity">+</button>
+                    aria-label="Increase quantity"${full || unsellable ? " disabled" : ""}>+</button>
           </div>
         </td>
         <td class="num" data-label="Total">${money(item.price * item.qty)}</td>
@@ -345,11 +489,22 @@ function renderCart() {
           <button class="remove-btn" type="button" data-action="remove"
                   data-barcode="${esc(item.barcode)}">Remove</button>
         </td>
-      </tr>`
-    )
-    .join("");
+      </tr>`;
+}
+
+function renderCart() {
+  const tbody = el("cartItems");
+
+  tbody.innerHTML = cart.length
+    ? cart.map(renderLine).join("")
+    : `
+      <tr><td colspan="5">
+        <div class="empty-state">No items yet. Scan a barcode to begin.</div>
+      </td></tr>`;
 
   renderSummary();
+  // Tiles share the cart's ceiling, so they grey out as the sale fills up.
+  renderQuickItems();
 }
 
 function renderSummary() {
@@ -367,22 +522,39 @@ function renderSummary() {
   change.textContent = money(Math.max(t.change, 0));
   change.style.color = t.change < 0 ? "var(--danger)" : "var(--text)";
 
-  el("payBtn").disabled = !cart.length || t.change < 0;
+  // A disabled pay button with no reason next to it is a stuck till. On a phone
+  // the collapsed summary bar is the only part of this card on screen, so the
+  // explanation has to live there rather than only in the cart.
+  const blocked = oversoldLine();
+  const warn = el("summaryWarn");
+  if (warn) {
+    warn.hidden = !blocked;
+    warn.textContent = blocked ? blockedMessage(blocked) : "";
+  }
+
+  el("payBtn").disabled = !cart.length || t.change < 0 || Boolean(blocked);
 }
 
 function renderQuickItems() {
   const container = el("quickItems");
   if (!container) return;
 
+  // An empty grid beats a "no products yet" that flashes on every page load
+  // before the first snapshot lands.
+  if (!productsLoaded) {
+    container.innerHTML = "";
+    return;
+  }
+
   // Prefer items that are actually in stock; fall back to the first few.
-  const inStock = products.filter((p) => (Number(p.stock) || 0) > 0);
+  const inStock = products.filter((p) => stockOf(p) > 0);
   const featured = (inStock.length ? inStock : products).slice(0, 8);
 
   if (!featured.length) {
     container.innerHTML = `
       <div class="empty-state" style="grid-column:1/-1;">
-        No products in the catalog yet.
-        <a href="catalog.html" style="color:var(--primary);font-weight:600;">Add some</a>.
+        No products yet.
+        <a href="stocks.html" style="color:var(--primary);font-weight:600;">Add some</a>.
       </div>`;
     return;
   }
@@ -390,7 +562,8 @@ function renderQuickItems() {
   container.innerHTML = featured
     .map(
       (p) => `
-      <button type="button" class="quick-item" data-barcode="${esc(p.barcode)}">
+      <button type="button" class="quick-item${roomFor(p) <= 0 ? " out" : ""}"
+              data-barcode="${esc(p.barcode)}">
         <h4>${esc(p.name)}</h4>
         <span>${money(p.price)}</span>
       </button>`
@@ -398,11 +571,10 @@ function renderQuickItems() {
     .join("");
 
   container.querySelectorAll(".quick-item").forEach((btn) => {
-    btn.onclick = async () => {
+    btn.onclick = () => {
       const product = products.find((p) => p.barcode === btn.dataset.barcode);
       if (!product) return;
-      addItemByProduct(product);
-      showStatus(el("scanStatus"), `${product.name} added.`, "success");
+      addOne(product, el("scanStatus"));
     };
   });
 }
@@ -415,6 +587,18 @@ async function completeSale() {
 
   if (t.change < 0) {
     toast("Cash tendered is less than the total", "error");
+    return;
+  }
+
+  // Last line of defence. Stock moves between the scan and the payment —
+  // another till, or an edit on the Stocks page — and this is the only check
+  // that runs against what is true right now rather than at scan time.
+  const blocked = oversoldLine();
+  if (blocked) {
+    const reason = blockedMessage(blocked);
+    collapseSummary(); // the sheet covers the cart on a phone
+    showStatus(el("scanStatus"), reason, "error");
+    toast(reason, "error");
     return;
   }
 

@@ -77,7 +77,7 @@ export function clearStatus(el) {
    desktop nav hides it and is otherwise unchanged. */
 const PAGES = [
   { href: "index.html", label: "Point of Sale", icon: "▣" },
-  { href: "catalog.html", label: "Catalog", icon: "▤" },
+  { href: "stocks.html", label: "Stocks", icon: "▤" },
   { href: "sales.html", label: "Sales", icon: "▦" }
 ];
 

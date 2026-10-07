@@ -25,7 +25,7 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------- products
-    // Doc id is the barcode. Staff may maintain the catalog.
+    // Doc id is the barcode. Staff may maintain stock.
     match /products/{barcode} {
       allow read: if signedIn();
       allow create, update: if signedIn();

@@ -116,6 +116,11 @@
 
           <div class="metric"><span>Change</span><strong id="changeValue">$0.00</strong></div>
 
+          <!-- Filled in by renderSummary() when a cart line cannot be sold as
+               it stands. Deliberately outside the blocks the collapsed phone
+               bar hides: it is the only reason the pay button is dead. -->
+          <div class="summary-warn" id="summaryWarn" hidden></div>
+
           <div class="payment-actions">
             <button class="primary-btn" id="payBtn" type="button">Complete sale</button>
             <button class="danger-btn" id="cancelBtn" type="button">Cancel</button>

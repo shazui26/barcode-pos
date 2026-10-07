@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Shared stylesheet for the POS + Catalog app.
+   Shared stylesheet for the POS + Stocks app.
 
    MOBILE-FIRST. The base rules below describe the phone layout, and the two
    min-width blocks near the bottom add the tablet and desktop layouts on top.
@@ -374,6 +374,10 @@ td.num, th.num { text-align: right; }
 .item-name { font-weight: 600; }
 .item-sub { color: var(--muted); font-size: 0.8rem; margin-top: 3px; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
 
+/* Why a cart line cannot be sold — "Out of stock", "Only 3 in stock". Wears the
+   same red as the "Out" badge on the Stocks page so the two read as one idea. */
+.item-warn { color: #c53030; font-size: 0.8rem; font-weight: 600; margin-top: 3px; }
+
 .empty-state { text-align: center; color: var(--muted); padding: 30px 16px; font-size: 0.96rem; }
 
 /* --- card mode ------------------------------------------------------------
@@ -382,7 +386,7 @@ td.num, th.num { text-align: right; }
    comes from the data-label attribute written by the JS templates, so the
    markup stays a real table for the desktop layout at >= 700px.
 
-   Applied to the cart and catalog tables. The sales table keeps scrolling
+   Applied to the cart and stocks tables. The sales table keeps scrolling
    horizontally, because its numbers and expandable detail rows are genuinely
    tabular. */
 
@@ -405,6 +409,11 @@ td.num, th.num { text-align: right; }
 }
 
 .cards-sm tr:last-child { margin-bottom: 0; }
+
+/* A cart line the sale cannot honour — there is less stock behind it than the
+   line claims. Tinting the row itself works in both layouts: card mode paints
+   the row as a card, table mode paints it behind its cells. */
+.cards-sm tr.unsellable { background: #fdf3f3; border-color: #f7c7c7; }
 
 .cards-sm td {
   border: none;
@@ -456,7 +465,10 @@ td.num, th.num { text-align: right; }
   line-height: 1;
 }
 
-.qty-box button:hover { background: rgba(47, 111, 237, 0.1); }
+.qty-box button:hover:not(:disabled) { background: rgba(47, 111, 237, 0.1); }
+
+/* The line has taken everything on the shelf, so + stops offering more. */
+.qty-box button:disabled { color: var(--muted); opacity: 0.4; cursor: not-allowed; }
 
 .qty-box span { min-width: 34px; text-align: center; font-weight: 600; }
 
@@ -516,6 +528,11 @@ td.num, th.num { text-align: right; }
 
 .quick-item h4 { margin: 0; font-size: 0.92rem; color: var(--text); }
 .quick-item span { color: var(--muted); font-size: 0.8rem; }
+
+/* Every unit the shop has is already in the sale. Deliberately left clickable:
+   the tap is what explains why, which a dead grey square cannot do. */
+.quick-item.out { background: #f7f9fc; border-style: dashed; }
+.quick-item.out h4, .quick-item.out span { color: var(--muted); }
 
 /* -------------------------------------------------------- summary ----- */
 
@@ -611,6 +628,20 @@ td.num, th.num { text-align: right; }
 
 .payment-actions { display: grid; gap: 10px; margin-top: 6px; }
 .payment-actions .primary-btn { height: 52px; border-radius: 14px; font-size: 1rem; }
+
+/* Why Complete sale is disabled, stated next to it. This one must NOT be among
+   the blocks the collapsed bar hides: on a phone that bar is the whole screen,
+   so hiding it would leave a dead button and no reason. */
+.summary-warn {
+  background: #fdecec;
+  color: #c53030;
+  border: 1px solid #f7c7c7;
+  border-radius: 10px;
+  padding: 8px 11px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
 
 /* Dim layer behind the unfolded summary. Inert unless the sheet is open. */
 .sheet-backdrop {
@@ -945,7 +976,7 @@ tr.sale-row:hover td { background: #fbfcff; }
     padding: 28px 24px;
   }
 
-  /* Single-column pages (catalog, sales) reuse .main-panel without the split. */
+  /* Single-column pages (stocks, sales) reuse .main-panel without the split. */
   .content.single { grid-template-columns: 1fr; }
   .content.single .main-panel { border-right: none; }
 

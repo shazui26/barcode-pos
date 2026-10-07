@@ -1,6 +1,6 @@
 /* ==========================================================================
    Data layer — every Firestore read/write in the app goes through here, so
-   the POS and the catalog stay consistent and there is one place to change
+   the POS and the stock list stay consistent and there is one place to change
    the schema.
 
    Schema

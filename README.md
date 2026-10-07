@@ -1,7 +1,7 @@
 # Barcode POS
 
 A point-of-sale and inventory app for a small shop. Scan a barcode, sell it,
-and keep the catalog and sales in Firebase so every device sees the same data.
+and keep stock and sales in Firebase so every device sees the same data.
 
 It is a **static site**: plain HTML, CSS and JavaScript with no build step, no
 `npm install`, and no server to run. Firebase is reached directly from the
@@ -12,7 +12,7 @@ Three screens:
 | Page | What it does |
 |---|---|
 | `index.html` | **Point of Sale** — scan items into a cart, take cash, complete the sale |
-| `catalog.html` | **Catalog** — add/edit/delete products and change store settings |
+| `stocks.html` | **Stocks** — add/edit/delete products and change store settings |
 | `sales.html` | **Sales** — takings for today / 7 / 30 days, and the full sales ledger |
 
 ---
@@ -75,7 +75,7 @@ repositories. Classic with `repo` is the simplest thing that works.)*
 ### 2. Run the deploy script
 
 ```powershell
-cd C:\Users\BMELLIZA\barcode-scanner
+cd C:\Users\yourfolder\barcode-scanner
 
 # If PowerShell refuses to run the script, allow it for this window only:
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -98,7 +98,7 @@ https://<your-username>.github.io/barcode-pos/
 ```
 
 Sign in there with a user you created in step 1.5. Open the same URL on a
-phone and the catalog is shared between them.
+phone and the stock list is shared between them.
 
 **To publish changes later, just run the script again.** Each run makes a new
 commit.
@@ -106,7 +106,7 @@ commit.
 ### Options
 
 ```powershell
-.\deploy.ps1 -Repo barcode-pos -CommitMessage "Add beer to catalog"
+.\deploy.ps1 -Repo barcode-pos -CommitMessage "Add beer to stock"
 .\deploy.ps1 -Repo barcode-pos -Owner my-org      # deploy under an organisation
 .\deploy.ps1 -Repo barcode-pos -SkipPages         # commit without touching Pages
 ```
@@ -120,17 +120,35 @@ commit.
 
 ## Daily use
 
-**Catalog page** — scan a product's barcode, type a name, price and stock
+**Stocks page** — scan a product's barcode, type a name, price and stock
 level, then **Save product**. The barcode *is* the product's identity, so
 saving a barcode that already exists updates that product instead of creating
 a duplicate. Set **Store settings** once (currency, tax rate, volume
 discount).
 
 **POS page** — scan or type a barcode. Known products drop straight into the
-cart; unknown ones are refused with a pointer to the Catalog page. Adjust
+cart; unknown ones are refused with a pointer to the Stocks page. Adjust
 quantities with the `+` / `−` steppers, enter the cash tendered (or hit
 **Exact**), and press **Complete sale**. That writes the sale and decrements
 stock in a single atomic operation, then offers a printable receipt.
+
+### Stock is a hard limit
+
+An item the shop does not have cannot be sold. The POS enforces that at four
+points, because a till that can oversell is worse than one that refuses:
+
+* **Scanning** an item with no stock left is refused — nothing goes in the
+  cart, and the reason is shown in red under the scan box.
+* **The `+` stepper** stops at the number on the shelf and greys out there.
+* **Quick item tiles** grey out once their whole stock is already in the sale.
+* **Complete sale** re-checks every line against live stock before writing.
+  Stock moves while a sale sits in the cart — another till, or an edit on the
+  Stocks page — so a line that was fine when it was scanned may not be by the
+  time it is rung up. When that happens the sale is blocked, the line is
+  flagged in the cart, and the reason appears next to the total.
+
+A product with no stock field at all counts as 0 — the same rule as the red
+**Out** badge on the Stocks page.
 
 **Sales page** — takings and the ledger. Click any sale to see its line items.
 
@@ -205,7 +223,7 @@ place to add them.
 
 ```
 index.html            POS terminal
-catalog.html          Product catalog and store settings
+stocks.html           Product stock and store settings
 sales.html            Sales history
 css/styles.css        All styling (shared design tokens)
 js/firebase-config.js <-- PASTE YOUR CONFIG HERE
@@ -215,7 +233,7 @@ js/store.js           Every Firestore read and write (schema lives here)
 js/scanner.js         Camera scanning wrapper
 js/ui.js              Currency, toasts, header/nav, setup notice
 js/pos.js             POS screen logic
-js/catalog.js         Catalog screen logic
+js/stocks.js          Stocks screen logic
 js/sales.js           Sales screen logic
 firestore.rules       Security rules - paste into the Firebase console
 deploy.ps1            Deploys to GitHub Pages via the GitHub API
