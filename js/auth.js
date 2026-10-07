@@ -126,7 +126,7 @@ function renderLoginForm(gateEl) {
         <div>POS Terminal</div>
       </div>
       <h1>Staff sign in</h1>
-      <p class="sub">Use the account created for you in the Firebase console.</p>
+      <p class="sub">Contact admin for access</p>
 
       <div class="field">
         <label for="loginEmail">Email</label>
@@ -144,7 +144,7 @@ function renderLoginForm(gateEl) {
 
       <button class="primary-btn" type="submit" id="loginBtn">Sign in</button>
       <p class="hint" style="text-align:center;">
-        No sign-up here by design — ask the owner to add your account.
+        ask the owner to add your account.
       </p>
     </form>`;
 

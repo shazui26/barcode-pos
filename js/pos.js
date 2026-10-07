@@ -255,19 +255,19 @@ function wireCamera() {
 /* -------------------------------------------------------------- cart --- */
 
 function totals() {
-  const subtotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const subtotal = round2(cart.reduce((sum, i) => sum + i.price * i.qty, 0));
   const itemCount = cart.reduce((n, i) => n + i.qty, 0);
 
   const discount =
     settings.discountMinItems > 0 && itemCount >= settings.discountMinItems
-      ? subtotal * settings.discountRate
+      ? round2(subtotal * settings.discountRate)
       : 0;
 
   const taxable = subtotal - discount;
-  const tax = taxable * settings.taxRate;
-  const total = taxable + tax;
+  const tax = round2(taxable * settings.taxRate);
+  const total = round2(taxable + tax);
   const tendered = Number(el("tendered").value) || total;
-  const change = tendered - total;
+  const change = round2(tendered - total);
 
   return { subtotal, itemCount, discount, tax, total, tendered, change };
 }
@@ -398,12 +398,22 @@ async function addByBarcodeInput(presetCode) {
     return;
   }
 
-  let product;
-  try {
-    product = await getProduct(code);
-  } catch (err) {
-    showStatus(el("scanStatus"), describeFirestoreError(err), "error");
-    return;
+  // The live subscription usually already holds the product, so look there
+  // first and spare the hot path a network round-trip — a busy till would
+  // otherwise bill one read per scan. A miss falls back to a direct read, which
+  // costs nothing on the common path and still covers two real cases: the
+  // moment before the first snapshot arrives (the list is still empty), and a
+  // product added on another device a beat ago, before its snapshot reaches
+  // this one.
+  let product = products.find((p) => p.barcode === code) || null;
+
+  if (!product) {
+    try {
+      product = await getProduct(code);
+    } catch (err) {
+      showStatus(el("scanStatus"), describeFirestoreError(err), "error");
+      return;
+    }
   }
 
   if (!product) {
@@ -734,6 +744,21 @@ function loadCart() {
 }
 
 /* ------------------------------------------------------------- utils --- */
+
+/**
+ * Round a money amount to whole cents.
+ *
+ * Prices, a tax rate and a discount rate multiply out to values like
+ * 10.908000000000001, and storing those as-is would put sub-cent noise into
+ * every sale record — the Sales page then sums the noise into Gross and Net
+ * profit, and the receipt total can disagree with the stored total in the last
+ * place. Rounding each monetary result here keeps the till to real cents.
+ * (Not a policy for the half-cent case — that is a far rarer question than the
+ * representation error this fixes.)
+ */
+function round2(n) {
+  return Math.round(n * 100) / 100;
+}
 
 /** Local HTML escaper — deliberately not named `escape` so it does not shadow
  *  the deprecated global of the same name. */
