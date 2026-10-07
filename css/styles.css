@@ -287,8 +287,27 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
    with :empty - html5-qrcode renders into this element and sizes the scan
    region from what it measures, so a display:none container measures 0x0, the
    qrbox collapses to 0x0, and the viewfinder stays invisible even after the
-   video has real dimensions. */
-#reader { display: none; width: 100%; max-width: 100%; border-radius: 14px; overflow: hidden; margin-top: 14px; }
+   video has real dimensions.
+
+   On a phone the camera filled the panel edge to edge and pushed the cart off
+   the bottom of the screen, so it is capped and centred here. Width is the only
+   dimension worth capping: js/scanner.js sizes the qrbox from this container's
+   width, and html5-qrcode lays out the video, the dimmed mask and the scan box
+   from that same number, so capping the width keeps all of them in step. A
+   height cap would instead clip the dashboard html5-qrcode renders underneath
+   the video, because #reader is overflow:hidden.
+
+   A 360px phone leaves about 296px of panel here, so 200px takes roughly a
+   third off - enough to bring the cart back into view without making the
+   preview awkward to aim with. It is restored to full width at >= 700px. */
+#reader {
+  display: none;
+  width: 100%;
+  max-width: 200px;
+  margin: 14px auto 0;
+  border-radius: 14px;
+  overflow: hidden;
+}
 #reader.active { display: block; }
 
 /* ------------------------------------------------------------ forms --- */
@@ -887,6 +906,10 @@ tr.sale-row:hover td { background: #fbfcff; }
   .cards-sm table { display: table; }
   .cards-sm thead { display: table-header-group; }
   .cards-sm tbody { display: table-row-group; }
+
+  /* The camera cap is a phone concession - there is room for the full width
+     again from here up. */
+  #reader { max-width: 100%; margin: 16px 0 0; }
 
   .cards-sm tr {
     display: table-row;
