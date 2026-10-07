@@ -12,8 +12,8 @@ Three screens:
 | Page | What it does |
 |---|---|
 | `index.html` | **Point of Sale** — scan items into a cart, take cash, complete the sale |
-| `stocks.html` | **Stocks** — add/edit/delete products and change store settings |
-| `sales.html` | **Sales** — takings for today / 7 / 30 days, and the full sales ledger |
+| `stocks.html` | **Stocks** — add/edit/delete products, cost and selling prices, store settings |
+| `sales.html` | **Sales** — takings for today / 7 / 30 days, best and worst sellers, net profit, full ledger |
 
 ---
 
@@ -120,11 +120,12 @@ commit.
 
 ## Daily use
 
-**Stocks page** — scan a product's barcode, type a name, price and stock
-level, then **Save product**. The barcode *is* the product's identity, so
-saving a barcode that already exists updates that product instead of creating
-a duplicate. Set **Store settings** once (currency, tax rate, volume
-discount).
+**Stocks page** — scan a product's barcode, type a name, what it cost you and
+what you sell it for, then a stock level, and **Save product**. The barcode *is*
+the product's identity, so saving a barcode that already exists updates that
+product instead of creating a duplicate. The table shows the margin between the
+two prices, in red when it is negative. Set **Store settings** once (currency,
+tax rate, volume discount).
 
 **POS page** — scan or type a barcode. Known products drop straight into the
 cart; unknown ones are refused with a pointer to the Stocks page. Adjust
@@ -150,7 +151,27 @@ points, because a till that can oversell is worse than one that refuses:
 A product with no stock field at all counts as 0 — the same rule as the red
 **Out** badge on the Stocks page.
 
-**Sales page** — takings and the ledger. Click any sale to see its line items.
+**Sales page** — takings and the ledger. The first row of tiles covers the
+period you select; the second names the product that earned the most, the one
+that shifted the most units, the one that shifted the fewest, and what is left
+after cost. Click any sale to see its line items.
+
+### Where the profit figure comes from
+
+Net profit is **what came in after discount and before tax, minus what the goods
+cost**. Tax is deliberately excluded — it is collected on someone else's behalf,
+so counting it would overstate every figure by the tax rate.
+
+Each sale line stores the cost as it stood when it was rung up, so raising a
+product's cost tomorrow does not silently rewrite the profit on yesterday's
+sales. Lines recorded before this field existed fall back to the product's
+*current* cost.
+
+**If a product has no original price, its lines count as costing nothing**, and
+the tile says so underneath — *"18 of 51 lines have no cost"*. Treat a profit
+figure with that warning as an upper bound, not a fact: it is flattered by
+exactly the lines that are missing a cost. Fill in the original prices on the
+Stocks page and the warning goes away.
 
 ### Scanning
 

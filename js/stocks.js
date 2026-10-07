@@ -12,6 +12,7 @@ import {
   CAMERA_BLOCKED_HELP
 } from "./scanner.js";
 import {
+  costRecorded,
   deleteProduct,
   saveSettings,
   subscribeProducts,
@@ -89,6 +90,9 @@ function wireEvents() {
     if (e.key === "Enter") { e.preventDefault(); el("name").focus(); }
   });
   el("name").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); el("cost").focus(); }
+  });
+  el("cost").addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); el("price").focus(); }
   });
   el("price").addEventListener("keydown", (e) => {
@@ -168,6 +172,7 @@ function wireCamera() {
 async function saveProduct() {
   const barcode = el("barcode").value.trim();
   const name = el("name").value.trim();
+  const cost = Number(el("cost").value) || 0;
   const price = Number(el("price").value) || 0;
   const stock = Number(el("stock").value) || 0;
 
@@ -185,7 +190,7 @@ async function saveProduct() {
   const btn = el("saveBtn");
   btn.disabled = true;
   try {
-    await upsertProduct({ barcode, name, price, stock }, user);
+    await upsertProduct({ barcode, name, price, cost, stock }, user);
     toast(editingBarcode ? "Product updated" : "Product saved");
     resetForm();
   } catch (err) {
@@ -204,6 +209,7 @@ function startEdit(barcode) {
   el("barcode").value = product.barcode;
   el("barcode").readOnly = true;
   el("name").value = product.name || "";
+  el("cost").value = product.cost ?? "";
   el("price").value = product.price ?? "";
   el("stock").value = product.stock ?? 0;
   el("formTitle").textContent = `Editing “${product.name}”`;
@@ -217,6 +223,7 @@ function resetForm() {
   el("barcode").value = "";
   el("barcode").readOnly = false;
   el("name").value = "";
+  el("cost").value = "";
   el("price").value = "";
   el("stock").value = "";
   el("formTitle").textContent = "Add a product";
@@ -258,7 +265,7 @@ function renderRows() {
 
   if (!visible.length) {
     tbody.innerHTML = `
-      <tr><td colspan="5">
+      <tr><td colspan="7">
         <div class="empty-state">
           ${products.length ? "No products match that filter." : "No products yet. Add your first one above."}
         </div>
@@ -276,7 +283,9 @@ function renderRows() {
         <tr>
           <td><div class="item-name">${esc(p.name)}</div></td>
           <td><span class="item-sub">${esc(p.barcode)}</span></td>
+          <td class="num" data-label="Cost">${costCell(p.cost)}</td>
           <td class="num" data-label="Price">${money(p.price)}</td>
+          <td class="num" data-label="Margin">${marginCell(p.cost, p.price)}</td>
           <td class="num" data-label="Stock"><span class="badge ${level}">${esc(label)}</span></td>
           <td class="num actions-cell">
             <div class="row-actions">
@@ -289,6 +298,34 @@ function renderRows() {
         </tr>`;
     })
     .join("");
+}
+
+/**
+ * Markup for the margin column.
+ *
+ * Only a *negative* margin is coloured. A positive one is not automatically
+ * good news — 2% is a worse margin than 40% — so painting every profitable line
+ * green would assert a judgement the number does not support. Selling below
+ * cost is the one case that is unambiguously wrong.
+ *
+ * An unrecorded cost is not a cost of zero, and the two must not be shown the
+ * same way: treating them alike would print "100%" against every product whose
+ * original price has not been filled in yet, which reads as pure profit. A dash
+ * says "not known", which is the truth. Nor is there a margin to speak of when
+ * the selling price is 0 — that division is undefined, not infinite.
+ */
+function marginCell(cost, price) {
+  const sell = Number(price) || 0;
+  if (sell <= 0 || !costRecorded(cost)) return `<span class="item-sub">—</span>`;
+
+  const pct = ((sell - (Number(cost) || 0)) / sell) * 100;
+  const cls = pct < 0 ? ' class="loss"' : "";
+  return `<span${cls}>${pct.toFixed(0)}%</span>`;
+}
+
+/** The cost cell: a dash when unrecorded, for the same reason as the margin. */
+function costCell(cost) {
+  return costRecorded(cost) ? money(cost) : `<span class="item-sub">—</span>`;
 }
 
 /* ---------------------------------------------------------- settings --- */
@@ -330,14 +367,31 @@ function exportCsv() {
     return;
   }
 
-  const header = ["Barcode", "Name", "Price", "Stock", "Stock Value"];
-  const rows = products.map((p) => [
-    p.barcode,
-    p.name,
-    Number(p.price || 0).toFixed(2),
-    Number(p.stock || 0),
-    (Number(p.price || 0) * Number(p.stock || 0)).toFixed(2)
-  ]);
+  const header = [
+    "Barcode", "Name", "Cost", "Selling Price", "Margin %",
+    "Stock", "Stock Cost", "Stock Value"
+  ];
+  const rows = products.map((p) => {
+    const cost = Number(p.cost || 0);
+    const price = Number(p.price || 0);
+    const stock = Number(p.stock || 0);
+    const known = costRecorded(p.cost);
+
+    return [
+      p.barcode,
+      p.name,
+      // Blank when unrecorded, not 0.00 — the spreadsheet must not inherit the
+      // same false-precision the on-screen table avoids.
+      known ? cost.toFixed(2) : "",
+      price.toFixed(2),
+      // Blank rather than 0 when there is no selling price or no cost: a 0%
+      // margin and an undefined one mean different things in a spreadsheet.
+      known && price > 0 ? (((price - cost) / price) * 100).toFixed(1) : "",
+      stock,
+      known ? (cost * stock).toFixed(2) : "",
+      (price * stock).toFixed(2)
+    ];
+  });
 
   const csv = [header, ...rows]
     .map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))

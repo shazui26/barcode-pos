@@ -15,6 +15,7 @@ import {
   CAMERA_BLOCKED_HELP
 } from "./scanner.js";
 import {
+  costRecorded,
   getProduct,
   recordSale,
   subscribeProducts,
@@ -276,12 +277,20 @@ function addItemByProduct(product) {
   if (existing) {
     existing.qty += 1;
   } else {
-    cart.push({
+    const line = {
       barcode: product.barcode,
       name: product.name,
       price: Number(product.price) || 0,
       qty: 1
-    });
+    };
+
+    // Snapshotted, like the price, so the profit on a sale is fixed by what the
+    // item cost when it was rung up. Only written when the product actually has
+    // a cost on file: a blank Original price means unknown, and recording 0
+    // would read back as a genuine cost of nothing, inflating profit silently.
+    if (costRecorded(product.cost)) line.cost = Number(product.cost) || 0;
+
+    cart.push(line);
   }
   saveCart();
   renderCart();
@@ -609,12 +618,26 @@ async function completeSale() {
   try {
     await recordSale(
       {
-        items: cart.map((i) => ({
-          barcode: i.barcode,
-          name: i.name,
-          price: i.price,
-          qty: i.qty
-        })),
+        items: cart.map((i) => {
+          const line = {
+            barcode: i.barcode,
+            name: i.name,
+            price: i.price,
+            qty: i.qty
+          };
+
+          // A cart restored from localStorage may have been saved before costs
+          // existed, so `i.cost` can be undefined. Firestore rejects a document
+          // containing undefined outright, which would fail the whole sale at
+          // the till. Writing 0 instead would be worse than failing: it reads
+          // back as a real cost of nothing and inflates the profit figure
+          // without raising the "no cost" warning. Omitting the key leaves the
+          // line honestly costless, and the Sales page falls back to the
+          // product's current cost for it.
+          if (costRecorded(i.cost)) line.cost = Number(i.cost) || 0;
+
+          return line;
+        }),
         subtotal: t.subtotal,
         taxRate: settings.taxRate,
         tax: t.tax,

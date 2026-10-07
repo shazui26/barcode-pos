@@ -44,7 +44,11 @@
               <input id="name" type="text" placeholder="e.g. Coffee beans 1kg" />
             </div>
             <div class="field">
-              <label for="price">Price</label>
+              <label for="cost">Original price</label>
+              <input id="cost" type="number" min="0" step="0.01" placeholder="0.00" />
+            </div>
+            <div class="field">
+              <label for="price">Selling price</label>
               <input id="price" type="number" min="0" step="0.01" placeholder="0.00" />
             </div>
             <div class="field">
@@ -81,7 +85,9 @@
               <tr>
                 <th>Name</th>
                 <th>Barcode</th>
+                <th class="num">Cost</th>
                 <th class="num">Price</th>
+                <th class="num">Margin</th>
                 <th class="num">Stock</th>
                 <th></th>
               </tr>

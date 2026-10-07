@@ -8,12 +8,25 @@
    products/{barcode}          doc id IS the barcode, so scanning is a direct
                                document read (no query) and duplicate barcodes
                                are impossible by construction.
-     { barcode, name, price, stock, updatedAt, updatedBy }
+     { barcode, name, price, cost, stock, updatedAt, updatedBy }
+
+                               `price` is what the customer pays, `cost` is what
+                               the shop paid. An absent `cost` means the cost is
+                               *unknown*, which is not the same as 0 — see
+                               costRecorded() below. (An absent `stock` does mean
+                               0, because "we have none" is the safe reading.)
 
    sales/{autoId}              append-only ledger (never updated or deleted)
-     { items: [{barcode, name, price, qty}], subtotal, taxRate, tax,
+     { items: [{barcode, name, price, cost, qty}], subtotal, taxRate, tax,
        discount, total, tendered, change, itemCount, cashierUid,
        cashierEmail, createdAt }
+
+                               Each line carries the `cost` as it stood when the
+                               sale was rung up, not a pointer to the product, so
+                               changing a product's cost later cannot rewrite the
+                               profit of sales already made. Lines written before
+                               that field existed have no `cost`; the Sales page
+                               falls back to the product's current one.
 
    settings/config             single document of store-wide settings
      { storeName, currency, taxRate, discountMinItems, discountRate }
@@ -47,6 +60,22 @@ export const DEFAULT_SETTINGS = {
 
 /* --------------------------------------------------------- products --- */
 
+/**
+ * Whether a cost price has actually been recorded.
+ *
+ * An absent cost is *unknown*, not zero, and keeping those apart is what makes
+ * the profit figure honest. A missing cost treated as 0 would report the entire
+ * selling price as profit and would never raise the warning the profit tile
+ * shows for lines it could not cost.
+ *
+ * `undefined`, `null` and `""` all mean the same thing: nobody typed an
+ * original price in. A real 0 — a giveaway, a donation — is a recorded cost of
+ * zero, and is treated as known.
+ */
+export function costRecorded(cost) {
+  return cost !== undefined && cost !== null && cost !== "";
+}
+
 /** Live-updating list of products, sorted by name. Returns an unsubscribe fn. */
 export function subscribeProducts(onChange, onError) {
   const q = query(collection(db, "products"), orderBy("name"));
@@ -64,12 +93,13 @@ export async function getProduct(barcode) {
 }
 
 /** Create or overwrite a product, keyed by barcode. */
-export async function upsertProduct({ barcode, name, price, stock }, user) {
+export async function upsertProduct({ barcode, name, price, cost, stock }, user) {
   const id = String(barcode).trim();
   await setDoc(doc(db, "products", id), {
     barcode: id,
     name: String(name).trim(),
     price: Number(price) || 0,
+    cost: Number(cost) || 0,
     stock: Number(stock) || 0,
     updatedAt: serverTimestamp(),
     updatedBy: user?.email || "unknown"
